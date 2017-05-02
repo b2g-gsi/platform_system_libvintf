@@ -45,8 +45,17 @@ const std::string &RuntimeInfo::hardwareId() const {
     return mHardwareId;
 }
 
+const KernelVersion &RuntimeInfo::kernelVersion() const {
+    return mKernelVersion;
+}
+
+
 const std::vector<std::string> &RuntimeInfo::sepolicyFilePaths() const {
     return mSepolicyFilePaths;
+}
+
+const std::map<std::string, std::string> &RuntimeInfo::kernelConfigs() const {
+    return mKernelConfigs;
 }
 
 size_t RuntimeInfo::kernelSepolicyVersion() const {
@@ -55,6 +64,14 @@ size_t RuntimeInfo::kernelSepolicyVersion() const {
 
 const std::string &RuntimeInfo::cpuInfo() const {
     return mCpuInfo;
+}
+
+const Version &RuntimeInfo::bootVbmetaAvbVersion() const {
+    return mBootVbmetaAvbVersion;
+}
+
+const Version &RuntimeInfo::bootAvbVersion() const {
+    return mBootAvbVersion;
 }
 
 bool RuntimeInfo::checkCompatibility(const CompatibilityMatrix &mat,
@@ -107,10 +124,10 @@ bool RuntimeInfo::checkCompatibility(const CompatibilityMatrix &mat,
     }
 
     const Version &matAvb = mat.framework.mAvbMetaVersion;
-    if (mAvbBootVersion.majorVer != matAvb.majorVer ||
-        mAvbBootVersion.minorVer <  matAvb.minorVer ||
-        mAvbInitVersion.majorVer != matAvb.majorVer ||
-        mAvbInitVersion.minorVer <  matAvb.minorVer) {
+    if (mBootAvbVersion.majorVer != matAvb.majorVer ||
+        mBootAvbVersion.minorVer <  matAvb.minorVer ||
+        mBootVbmetaAvbVersion.majorVer != matAvb.majorVer ||
+        mBootVbmetaAvbVersion.minorVer <  matAvb.minorVer) {
         return false;
     }
 

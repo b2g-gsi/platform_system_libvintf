@@ -232,11 +232,11 @@ status_t RuntimeInfoFetcher::fetchSepolicyFiles() {
 status_t RuntimeInfoFetcher::fetchAvb() {
     char prop[PROPERTY_VALUE_MAX];
     property_get("ro.boot.vbmeta.avb_version", prop, "0.0");
-    if (!parse(prop, &mRuntimeInfo->mAvbBootVersion)) {
+    if (!parse(prop, &mRuntimeInfo->mBootVbmetaAvbVersion)) {
         return UNKNOWN_ERROR;
     }
     property_get("ro.boot.avb_version", prop, "0.0");
-    if (!parse(prop, &mRuntimeInfo->mAvbInitVersion)) {
+    if (!parse(prop, &mRuntimeInfo->mBootAvbVersion)) {
         return UNKNOWN_ERROR;
     }
     return OK;
@@ -245,22 +245,22 @@ status_t RuntimeInfoFetcher::fetchAvb() {
 status_t RuntimeInfoFetcher::fetchAllInformation() {
     status_t err;
     if ((err = fetchVersion()) != OK) {
-        return err;
+        LOG(ERROR) << "Cannot fetch or parse /proc/version: " << strerror(-err);
     }
     if ((err = fetchKernelConfigs()) != OK) {
-        return err;
+        LOG(ERROR) << "Cannot fetch or parse /proc/config.gz: " << strerror(-err);
     }
     if ((err = fetchCpuInfo()) != OK) {
-        return err;
+        LOG(ERROR) << "Cannot fetch /proc/cpuinfo: " << strerror(-err);
     }
     if ((err = fetchKernelSepolicyVers()) != OK) {
-        return err;
+        LOG(ERROR) << "Cannot fetch kernel sepolicy version: " << strerror(-err);
     }
     if ((err = fetchSepolicyFiles()) != OK) {
-        return err;
+        LOG(ERROR) << "Cannot fetch sepolicy file paths: " << strerror(-err);
     }
     if ((err = fetchAvb()) != OK) {
-        return err;
+        LOG(ERROR) << "Cannot fetch sepolicy avb version: " << strerror(-err);
     }
     return OK;
 }
