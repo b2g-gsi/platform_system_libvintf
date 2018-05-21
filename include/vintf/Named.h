@@ -14,22 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_VINTF_DISABLED_CHECKS_H_
-#define ANDROID_VINTF_DISABLED_CHECKS_H_
+#ifndef ANDROID_VINTF_NAMED_H
+#define ANDROID_VINTF_NAMED_H
 
-namespace android {
-namespace vintf {
+#include <string>
 
-// Flags for *::checkCompatibility functions.
-enum DisabledChecks : int32_t {
-    ENABLE_ALL_CHECKS = 0,
-    // Disable AVB version check in RuntimeInfo::checkCompatibility
-    DISABLE_AVB_CHECK = 1 << 0,
-    // Disable RuntimeInfo <-> Framework Matrix check. This implies DISABLE_AVB_CHECK.
-    DISABLE_RUNTIME_INFO = 1 << 1,
+template <typename T>
+struct Named {
+    std::string name;
+    T object;
+
+    Named() = default;
+    Named(const std::string& n, const T& o) : name(n), object(o) {}
+    Named(std::string&& n, T&& o) : name(std::move(n)), object(std::move(o)) {}
 };
 
-}  // namespace vintf
-}  // namespace android
-
-#endif  // ANDROID_VINTF_DISABLED_CHECKS_H_
+#endif  // ANDROID_VINTF_NAMED_H

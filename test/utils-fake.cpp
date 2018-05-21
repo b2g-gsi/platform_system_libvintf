@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "utils.h"
+#include "utils-fake.h"
 
 namespace android {
 namespace vintf {
@@ -22,11 +22,21 @@ namespace details {
 
 // Do not create the mock objects here as InitGoogleMock must be called
 // first.
-FileFetcher* gFetcher = nullptr;
-
 PartitionMounter* gPartitionMounter = nullptr;
 
 ObjectFactory<RuntimeInfo>* gRuntimeInfoFactory = nullptr;
+
+MockPropertyFetcher::MockPropertyFetcher() {
+    using namespace ::testing;
+    using namespace std::placeholders;
+    ON_CALL(*this, getProperty(_, _))
+        .WillByDefault(Invoke(std::bind(&PropertyFetcher::getProperty, real_, _1, _2)));
+}
+
+MockPropertyFetcher* gPropertyFetcher = nullptr;
+const PropertyFetcher& getPropertyFetcher() {
+    return *gPropertyFetcher;
+}
 
 }  // namespace details
 }  // namespace vintf

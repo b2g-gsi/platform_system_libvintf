@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_VINTF_DISABLED_CHECKS_H_
-#define ANDROID_VINTF_DISABLED_CHECKS_H_
+#include "SystemSdk.h"
+
+#include <algorithm>
 
 namespace android {
 namespace vintf {
 
-// Flags for *::checkCompatibility functions.
-enum DisabledChecks : int32_t {
-    ENABLE_ALL_CHECKS = 0,
-    // Disable AVB version check in RuntimeInfo::checkCompatibility
-    DISABLE_AVB_CHECK = 1 << 0,
-    // Disable RuntimeInfo <-> Framework Matrix check. This implies DISABLE_AVB_CHECK.
-    DISABLE_RUNTIME_INFO = 1 << 1,
-};
+SystemSdk SystemSdk::removeVersions(const SystemSdk& other) const {
+    SystemSdk ret;
+    std::set_difference(versions().begin(), versions().end(), other.versions().begin(),
+                        other.versions().end(), std::inserter(ret.mVersions, ret.mVersions.end()));
+    return ret;
+}
+
+bool SystemSdk::operator==(const SystemSdk& other) const {
+    return versions() == other.versions();
+}
 
 }  // namespace vintf
 }  // namespace android
-
-#endif  // ANDROID_VINTF_DISABLED_CHECKS_H_

@@ -17,43 +17,17 @@
 #ifndef ANDROID_VINTF_UTILS_H
 #define ANDROID_VINTF_UTILS_H
 
-#include <fstream>
-#include <iostream>
-#include <sstream>
+#include <memory>
+#include <mutex>
 
-#include <android-base/logging.h>
 #include <utils/Errors.h>
+#include <vintf/FileSystem.h>
 #include <vintf/RuntimeInfo.h>
 #include <vintf/parse_xml.h>
 
 namespace android {
 namespace vintf {
 namespace details {
-
-// Return the file from the given location as a string.
-//
-// This class can be used to create a mock for overriding.
-class FileFetcher {
-   public:
-    virtual ~FileFetcher() {}
-    virtual status_t fetch(const std::string& path, std::string& fetched) {
-        std::ifstream in;
-
-        in.open(path);
-        if (!in.is_open()) {
-            LOG(WARNING) << "Cannot open " << path;
-            return INVALID_OPERATION;
-        }
-
-        std::stringstream ss;
-        ss << in.rdbuf();
-        fetched = ss.str();
-
-        return OK;
-    }
-};
-
-extern FileFetcher* gFetcher;
 
 class PartitionMounter {
    public:
@@ -68,24 +42,20 @@ extern PartitionMounter* gPartitionMounter;
 
 template <typename T>
 status_t fetchAllInformation(const std::string& path, const XmlConverter<T>& converter,
-                             T* outObject) {
+                             T* outObject, std::string* error = nullptr) {
     std::string info;
 
-    if (gFetcher == nullptr) {
-        // Should never happen.
-        return NO_INIT;
-    }
-
-    status_t result = gFetcher->fetch(path, info);
+    status_t result = getFileSystem().fetch(path, &info, error);
 
     if (result != OK) {
         return result;
     }
 
-    bool success = converter(outObject, info);
+    bool success = converter(outObject, info, error);
     if (!success) {
-        LOG(ERROR) << "Illformed file: " << path << ": "
-                   << converter.lastError();
+        if (error) {
+            *error = "Illformed file: " + path + ": " + *error;
+        }
         return BAD_VALUE;
     }
     return OK;
@@ -98,6 +68,31 @@ class ObjectFactory {
     virtual std::shared_ptr<T> make_shared() const { return std::make_shared<T>(); }
 };
 extern ObjectFactory<RuntimeInfo>* gRuntimeInfoFactory;
+
+// TODO(b/70628538): Do not infer from Shipping API level.
+inline Level convertFromApiLevel(size_t apiLevel) {
+    if (apiLevel < 26) {
+        return Level::LEGACY;
+    } else if (apiLevel == 26) {
+        return Level::O;
+    } else if (apiLevel == 27) {
+        return Level::O_MR1;
+    } else {
+        return Level::UNSPECIFIED;
+    }
+}
+
+class PropertyFetcher {
+   public:
+    virtual ~PropertyFetcher() = default;
+    virtual std::string getProperty(const std::string& key,
+                                    const std::string& defaultValue = "") const;
+    virtual uint64_t getUintProperty(const std::string& key, uint64_t defaultValue,
+                                     uint64_t max = UINT64_MAX) const;
+    virtual bool getBoolProperty(const std::string& key, bool defaultValue) const;
+};
+
+const PropertyFetcher& getPropertyFetcher();
 
 }  // namespace details
 }  // namespace vintf

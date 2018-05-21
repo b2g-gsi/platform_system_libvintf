@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2017 The Android Open Source Project
  *
@@ -14,22 +15,26 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_VINTF_DISABLED_CHECKS_H_
-#define ANDROID_VINTF_DISABLED_CHECKS_H_
+#include "utils.h"
 
 namespace android {
 namespace vintf {
+namespace details {
 
-// Flags for *::checkCompatibility functions.
-enum DisabledChecks : int32_t {
-    ENABLE_ALL_CHECKS = 0,
-    // Disable AVB version check in RuntimeInfo::checkCompatibility
-    DISABLE_AVB_CHECK = 1 << 0,
-    // Disable RuntimeInfo <-> Framework Matrix check. This implies DISABLE_AVB_CHECK.
-    DISABLE_RUNTIME_INFO = 1 << 1,
-};
+std::string PropertyFetcher::getProperty(const std::string&,
+                                         const std::string& defaultValue) const {
+    return defaultValue;
+}
 
+uint64_t PropertyFetcher::getUintProperty(const std::string&, uint64_t,
+                                          uint64_t defaultValue) const {
+    return defaultValue;
+}
+
+bool PropertyFetcher::getBoolProperty(const std::string&, bool defaultValue) const {
+    return defaultValue;
+}
+
+}  // namespace details
 }  // namespace vintf
 }  // namespace android
-
-#endif  // ANDROID_VINTF_DISABLED_CHECKS_H_

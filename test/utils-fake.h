@@ -27,17 +27,20 @@ namespace android {
 namespace vintf {
 namespace details {
 
-class MockFileFetcher : public FileFetcher {
+class MockFileSystem : public FileSystem {
    public:
-    MockFileFetcher() {
-        // By default call through to the original.
-        ON_CALL(*this, fetch(_, _)).WillByDefault(Invoke(&real_, &FileFetcher::fetch));
+    MockFileSystem() {}
+
+    MOCK_CONST_METHOD2(fetch, status_t(const std::string& path, std::string& fetched));
+    MOCK_CONST_METHOD3(listFiles,
+                       status_t(const std::string&, std::vector<std::string>*, std::string*));
+
+    status_t fetch(const std::string& path, std::string* fetched, std::string*) const override {
+        // Call the mocked function
+        return fetch(path, *fetched);
     }
-
-    MOCK_METHOD2(fetch, status_t(const std::string& path, std::string& fetched));
-
    private:
-    FileFetcher real_;
+    FileSystemImpl mImpl;
 };
 
 class MockPartitionMounter : public PartitionMounter {
@@ -85,13 +88,7 @@ class MockRuntimeInfo : public RuntimeInfo {
             .WillByDefault(Invoke(this, &MockRuntimeInfo::doFetch));
     }
     MOCK_METHOD1(fetchAllInformation, status_t(RuntimeInfo::FetchFlags));
-    status_t doFetch(RuntimeInfo::FetchFlags flags) {
-        if (failNextFetch_) {
-            failNextFetch_ = false;
-            return android::UNKNOWN_ERROR;
-        }
-        return RuntimeInfo::fetchAllInformation(flags);
-    }
+    status_t doFetch(RuntimeInfo::FetchFlags flags);
     void failNextFetch() { failNextFetch_ = true; }
 
    private:
@@ -106,6 +103,16 @@ class MockRuntimeInfoFactory : public ObjectFactory<RuntimeInfo> {
    private:
     std::shared_ptr<MockRuntimeInfo> object_;
 };
+
+class MockPropertyFetcher : public PropertyFetcher {
+   public:
+    MockPropertyFetcher();
+    MOCK_CONST_METHOD2(getProperty, std::string(const std::string&, const std::string&));
+
+   private:
+    PropertyFetcher real_;
+};
+extern MockPropertyFetcher* gPropertyFetcher;
 
 }  // namespace details
 }  // namespace vintf

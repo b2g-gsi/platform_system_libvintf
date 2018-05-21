@@ -91,11 +91,10 @@ struct RuntimeInfo {
    protected:
     virtual status_t fetchAllInformation(FetchFlags flags);
 
-   private:
     friend struct RuntimeInfoFetcher;
     friend class VintfObject;
     friend struct LibVintfTest;
-    friend std::string dump(const RuntimeInfo &ki);
+    friend std::string dump(const RuntimeInfo& ki, bool);
 
     // mKernelVersion = x'.y'.z', minLts = x.y.z,
     // match if x == x' , y == y' , and z <= z'.
