@@ -52,8 +52,10 @@ Version CompatibilityMatrix::getMinimumMetaVersion() const {
     return {1, 0};
 }
 
-status_t CompatibilityMatrix::fetchAllInformation(const std::string& path, std::string* error) {
-    return details::fetchAllInformation(path, gCompatibilityMatrixConverter, this, error);
+status_t CompatibilityMatrix::fetchAllInformation(const FileSystem* fileSystem,
+                                                  const std::string& path, std::string* error) {
+    return details::fetchAllInformation(fileSystem, path, gCompatibilityMatrixConverter, this,
+                                        error);
 }
 
 std::string CompatibilityMatrix::getXmlSchemaPath(const std::string& xmlFileName,
@@ -294,7 +296,7 @@ static bool checkDuplicateLevels(const std::vector<Named<CompatibilityMatrix>>& 
                                  std::string* error) {
     std::map<Level, const std::string*> existingLevels;
     for (const auto& e : matrices) {
-        if (e.object.level() == Level::UNSPECIFIED &&
+        if (e.object.level() != Level::UNSPECIFIED &&
             existingLevels.find(e.object.level()) != existingLevels.end()) {
             if (error) {
                 *error = "Conflict of levels: file \"" +
@@ -437,6 +439,10 @@ bool CompatibilityMatrix::matchInstance(const std::string& halName, const Versio
                                          return !found;  // if not found, continue
                                      });
     return found;
+}
+
+std::string CompatibilityMatrix::getVendorNdkVersion() const {
+    return type() == SchemaType::DEVICE ? device.mVendorNdk.version() : "";
 }
 
 } // namespace vintf
