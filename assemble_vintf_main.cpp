@@ -52,18 +52,21 @@ void help() {
                  "               - VINTF_ENFORCE_NO_UNUSED_HALS  =true: check unused HALs\n"
                  "               If any check fails, an error message is written to stderr.\n"
                  "               Return 1.\n"
-                 "    --kernel=<version>:<android-base.cfg>[:<android-base-arch.cfg>[...]]\n"
+                 "    --kernel=<version>:<android-base.config>[:<android-base-arch.config>[...]]\n"
                  "               Add a kernel entry to framework compatibility matrix.\n"
                  "               Ignored for other input format.\n"
                  "               <version> has format: 3.18.0\n"
-                 "               <android-base.cfg> is the location of android-base.cfg\n"
-                 "               <android-base-arch.cfg> is the location of an optional\n"
+                 "               <android-base.config> is the location of android-base.config\n"
+                 "               <android-base-arch.config> is the location of an optional\n"
                  "               arch-specific config fragment, more than one may be specified\n"
                  "    -l, --hals-only\n"
                  "               Output has only <hal> entries. Cannot be used with -n.\n"
                  "    -n, --no-hals\n"
                  "               Output has no <hal> entries (but all other entries).\n"
-                 "               Cannot be used with -l.\n";
+                 "               Cannot be used with -l.\n"
+                 "    --no-kernel-requirements\n"
+                 "               Output has no <config> entries in <kernel>, and kernel minor\n"
+                 "               version is set to zero. (For example, 3.18.0).\n";
 }
 
 int main(int argc, char** argv) {
@@ -71,6 +74,7 @@ int main(int argc, char** argv) {
     const struct option longopts[] = {{"kernel", required_argument, NULL, 'k'},
                                       {"hals-only", no_argument, NULL, 'l'},
                                       {"no-hals", no_argument, NULL, 'n'},
+                                      {"no-kernel-requirements", no_argument, NULL, 'K'},
                                       {0, 0, 0, 0}};
 
     std::string outFilePath;
@@ -122,6 +126,12 @@ int main(int argc, char** argv) {
 
             case 'n': {
                 if (!assembleVintf->setNoHals()) {
+                    return 1;
+                }
+            } break;
+
+            case 'K': {
+                if (!assembleVintf->setNoKernelRequirements()) {
                     return 1;
                 }
             } break;
