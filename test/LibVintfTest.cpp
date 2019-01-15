@@ -59,7 +59,10 @@ public:
         return cm.add(std::move(hal));
     }
     bool add(CompatibilityMatrix &cm, MatrixKernel &&kernel) {
-        return cm.add(std::move(kernel));
+        std::string error;
+        bool success = cm.addKernel(std::move(kernel), &error);
+        EXPECT_EQ(success, error == "") << "success: " << success << ", error: " << error;
+        return success;
     }
     bool add(HalManifest &vm, ManifestHal &&hal) {
         return vm.add(std::move(hal));
@@ -3431,6 +3434,12 @@ TEST_F(LibVintfTest, Regex) {
     EXPECT_FALSE(regex.matches("legacy/"));
     EXPECT_FALSE(regex.matches("ssslegacy/0"));
     EXPECT_FALSE(regex.matches("legacy/0sss"));
+}
+
+TEST_F(LibVintfTest, ManifestGetHalNamesAndVersions) {
+    HalManifest vm = testDeviceManifest();
+    EXPECT_EQ(vm.getHalNamesAndVersions(),
+              std::set<std::string>({"android.hardware.camera@2.0", "android.hardware.nfc@1.0"}));
 }
 
 } // namespace vintf

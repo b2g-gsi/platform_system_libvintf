@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#include "utils-fake.h"
+#pragma once
 
 namespace android {
 namespace vintf {
-namespace details {
 
-MockPropertyFetcher::MockPropertyFetcher() {
-    using namespace ::testing;
-    using namespace std::placeholders;
-    ON_CALL(*this, getProperty(_, _))
-        .WillByDefault(Invoke(std::bind(&PropertyFetcher::getProperty, real_, _1, _2)));
-}
+class PropertyFetcher {
+   public:
+    virtual ~PropertyFetcher() = default;
+    virtual std::string getProperty(const std::string& key,
+                                    const std::string& defaultValue = "") const = 0;
+    virtual uint64_t getUintProperty(const std::string& key, uint64_t defaultValue,
+                                     uint64_t max = UINT64_MAX) const = 0;
+    virtual bool getBoolProperty(const std::string& key, bool defaultValue) const = 0;
+};
 
-}  // namespace details
 }  // namespace vintf
 }  // namespace android
