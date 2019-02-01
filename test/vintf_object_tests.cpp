@@ -327,6 +327,27 @@ const std::string vendorManifestRequire2 =
     "    </hal>\n"
     "</manifest>\n";
 
+//
+// Set of metadata for kernel requirements
+//
+
+const std::string vendorManifestKernel318 =
+    "<manifest version=\"1.0\" type=\"device\">\n"
+    "    <kernel version=\"3.18.999\" />\n"
+    "    <sepolicy>\n"
+    "        <version>25.5</version>\n"
+    "    </sepolicy>\n"
+    "</manifest>\n";
+
+const std::string systemMatrixKernel318 =
+    "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+    "    <kernel version=\"3.18.999\"></kernel>\n"
+    "    <sepolicy>\n"
+    "        <kernel-sepolicy-version>30</kernel-sepolicy-version>\n"
+    "        <sepolicy-version>25.5</sepolicy-version>\n"
+    "    </sepolicy>\n"
+    "</compatibility-matrix>\n";
+
 class VintfObjectTestBase : public ::testing::Test {
    protected:
     MockFileSystem& fetcher() {
@@ -392,6 +413,8 @@ class VintfObjectTestBase : public ::testing::Test {
         // Don't list /system/etc/vintf unless otherwise specified.
         ON_CALL(fetcher(), listFiles(StrEq(kSystemVintfDir), _, _))
             .WillByDefault(Return(::android::OK));
+        // Don't fetch product matrix unless otherwise specified.
+        ON_CALL(fetcher(), fetch(StrEq(kProductMatrix), _)).WillByDefault(Return(NAME_NOT_FOUND));
     }
 
     void setFakeProperties() {
@@ -437,6 +460,7 @@ class VintfObjectTestBase : public ::testing::Test {
     }
 
     void expectSystemMatrix(size_t times = 1) {
+        EXPECT_CALL(fetcher(), fetch(StrEq(kProductMatrix), _)).Times(times);
         EXPECT_CALL(fetcher(), fetch(StrEq(kSystemLegacyMatrix), _)).Times(times);
     }
 
@@ -582,6 +606,28 @@ TEST_F(VintfObjectCompatibleTest, TestFullOta) {
     ASSERT_STREQ(error.c_str(), "");
 }
 
+// Test that framework-only OTA fails when kernel is not compatible with incoming system.
+TEST_F(VintfObjectCompatibleTest, KernelInfoIncompatible) {
+    std::string error;
+    std::vector<std::string> packageInfo = {systemMatrixKernel318};
+
+    int result = checkCompatibility(packageInfo, &error);
+
+    ASSERT_EQ(result, INCOMPATIBLE) << "Should have failed.";
+    EXPECT_IN("Framework is incompatible with kernel version 3.18.31", error);
+}
+
+// Test that full OTA is successful when the OTA package provides a compatible kernel.
+TEST_F(VintfObjectCompatibleTest, UpdateKernel) {
+    std::string error;
+    std::vector<std::string> packageInfo = {vendorManifestKernel318, systemMatrixKernel318};
+
+    int result = checkCompatibility(packageInfo, &error);
+
+    ASSERT_EQ(result, COMPATIBLE) << "Fail message:" << error;
+    ASSERT_STREQ(error.c_str(), "");
+}
+
 // Test fixture that provides incompatible metadata from the mock device.
 class VintfObjectIncompatibleTest : public VintfObjectTestBase {
    protected:
@@ -694,10 +740,53 @@ TEST_F(VintfObjectTest, FrameworkCompatibilityMatrixCombine) {
                 "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\"/>");
     expectFetch(kSystemVintfDir + "compatibility_matrix.empty.xml",
                 "<compatibility-matrix version=\"1.0\" type=\"framework\"/>");
+    expectFileNotExist(StrEq(kProductMatrix));
     expectFetch(kVendorManifest, "<manifest version=\"1.0\" type=\"device\" />\n");
-    expectSystemMatrix(0);
+    expectNeverFetch(kSystemLegacyMatrix);
 
     EXPECT_NE(nullptr, vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */));
+}
+
+// Test product compatibility matrix is fetched
+TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
+    EXPECT_CALL(fetcher(), listFiles(StrEq(kSystemVintfDir), _, _))
+        .WillOnce(Invoke([](const auto&, auto* out, auto*) {
+            *out = {
+                "compatibility_matrix.1.xml",
+                "compatibility_matrix.empty.xml",
+            };
+            return ::android::OK;
+        }));
+    expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml",
+                "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\"/>");
+    expectFetch(kSystemVintfDir + "compatibility_matrix.empty.xml",
+                "<compatibility-matrix version=\"1.0\" type=\"framework\"/>");
+    expectFetch(kProductMatrix,
+                "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+                "    <hal format=\"hidl\" optional=\"true\">\n"
+                "        <name>android.hardware.foo</name>\n"
+                "        <version>1.0</version>\n"
+                "        <interface>\n"
+                "            <name>IFoo</name>\n"
+                "            <instance>default</instance>\n"
+                "        </interface>\n"
+                "    </hal>\n"
+                "</compatibility-matrix>\n");
+    expectFetch(kVendorManifest, "<manifest version=\"1.0\" type=\"device\" />\n");
+    expectNeverFetch(kSystemLegacyMatrix);
+
+    auto fcm = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
+    ASSERT_NE(nullptr, fcm);
+
+    FqInstance expectInstance;
+    EXPECT_TRUE(expectInstance.setTo("android.hardware.foo@1.0::IFoo/default"));
+    bool found = false;
+    fcm->forEachInstance([&found, &expectInstance](const auto& matrixInstance) {
+        found |= matrixInstance.isSatisfiedBy(expectInstance);
+        return !found;  // continue if not found
+    });
+    EXPECT_TRUE(found) << "android.hardware.foo@1.0::IFoo/default should be found in matrix:\n"
+                       << gCompatibilityMatrixConverter(*fcm);
 }
 
 const std::string vendorEtcManifest =
@@ -938,7 +1027,8 @@ class DeprecateTest : public VintfObjectTestBase {
             .WillOnce(Return(::android::OK));
         expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml", systemMatrixLevel1);
         expectFetch(kSystemVintfDir + "compatibility_matrix.2.xml", systemMatrixLevel2);
-        expectSystemMatrix(0);
+        expectFileNotExist(StrEq(kProductMatrix));
+        expectNeverFetch(kSystemLegacyMatrix);
 
         expectFetch(kVendorManifest,
                     "<manifest version=\"1.0\" type=\"device\" target-level=\"2\"/>");
@@ -1048,7 +1138,8 @@ class MultiMatrixTest : public VintfObjectTestBase {
             expectFetchRepeatedly(kSystemVintfDir + getFileName(i), content);
             ++i;
         }
-        expectSystemMatrix(0);
+        expectFileNotExist(kProductMatrix);
+        expectNeverFetch(kSystemLegacyMatrix);
         expectFileNotExist(StartsWith("/odm/"));
     }
     void expectTargetFcmVersion(size_t level) {

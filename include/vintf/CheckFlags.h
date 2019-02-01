@@ -25,9 +25,9 @@ namespace CheckFlags {
 // Flags for *::checkCompatibility functions.
 class Type {
    public:
-#define VINTF_CHECK_FLAGS_FIELD(name, bit)                                      \
-    constexpr Type enable##name() const { return Type(mValue | (1 << bit)); }   \
-    constexpr Type disable##name() const { return Type(mValue & ~(1 << bit)); } \
+#define VINTF_CHECK_FLAGS_FIELD(name, bit)                                                    \
+    [[nodiscard]] constexpr Type enable##name() const { return Type(mValue | (1 << bit)); }   \
+    [[nodiscard]] constexpr Type disable##name() const { return Type(mValue & ~(1 << bit)); } \
     constexpr bool is##name##Enabled() const { return mValue & (1 << bit); }
 
     VINTF_CHECK_FLAGS_FIELD(Avb, 0)
@@ -47,6 +47,9 @@ constexpr Type DISABLE_ALL_CHECKS{0};
 constexpr Type DISABLE_AVB_CHECK = ENABLE_ALL_CHECKS.disableAvb();
 // Disable RuntimeInfo <-> Framework Matrix check. This implies DISABLE_AVB_CHECK.
 constexpr Type DISABLE_RUNTIME_INFO = ENABLE_ALL_CHECKS.disableRuntimeInfo();
+
+// Default flag if no flag is provided.
+constexpr Type DEFAULT = DISABLE_AVB_CHECK;
 
 // tests
 static_assert(ENABLE_ALL_CHECKS.isAvbEnabled(), "");
