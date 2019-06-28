@@ -108,10 +108,9 @@ class AssembleVintfImpl : public AssembleVintf {
 
     /**
      * Set *out to environment variable only if *out is a dummy value (i.e. default constructed).
-     * Return true if *out is set to environment variable, otherwise false.
      */
     template <typename T>
-    bool getFlagIfUnset(const std::string& envKey, T* out, bool log = true) const {
+    void getFlagIfUnset(const std::string& envKey, T* out) const {
         bool hasExistingValue = !(*out == T{});
 
         bool hasEnvValue = false;
@@ -119,30 +118,22 @@ class AssembleVintfImpl : public AssembleVintf {
         std::string envStrValue = getEnv(envKey);
         if (!envStrValue.empty()) {
             if (!parse(envStrValue, &envValue)) {
-                if (log) {
-                    std::cerr << "Cannot parse " << envValue << "." << std::endl;
-                }
-                return false;
+                std::cerr << "Cannot parse " << envValue << "." << std::endl;
+                return;
             }
             hasEnvValue = true;
         }
 
         if (hasExistingValue) {
-            if (hasEnvValue && log) {
+            if (hasEnvValue && (*out != envValue)) {
                 std::cerr << "Warning: cannot override existing value " << *out << " with "
                           << envKey << " (which is " << envValue << ")." << std::endl;
             }
-            return false;
+            return;
         }
-        if (!hasEnvValue) {
-            if (log) {
-                std::cerr << "Warning: " << envKey << " is not specified. Default to " << T{} << "."
-                          << std::endl;
-            }
-            return false;
+        if (hasEnvValue) {
+            *out = envValue;
         }
-        *out = envValue;
-        return true;
     }
 
     bool getBooleanFlag(const std::string& key) const { return getEnv(key) == std::string("true"); }
@@ -584,10 +575,8 @@ class AssembleVintfImpl : public AssembleVintf {
                                                                                 v.minorVer);
             }
 
-            getFlagIfUnset("POLICYVERS", &matrix->framework.mSepolicy.mKernelSepolicyVersion,
-                           false /* log */);
-            getFlagIfUnset("FRAMEWORK_VBMETA_VERSION", &matrix->framework.mAvbMetaVersion,
-                           false /* log */);
+            getFlagIfUnset("POLICYVERS", &matrix->framework.mSepolicy.mKernelSepolicyVersion);
+            getFlagIfUnset("FRAMEWORK_VBMETA_VERSION", &matrix->framework.mAvbMetaVersion);
             // Hard-override existing AVB version
             getFlag("FRAMEWORK_VBMETA_VERSION_OVERRIDE", &matrix->framework.mAvbMetaVersion,
                     false /* log */);
