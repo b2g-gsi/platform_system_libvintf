@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,28 +14,24 @@
  * limitations under the License.
  */
 
-#include "MatrixKernel.h"
+#pragma once
+
+#include "Level.h"
+#include "Version.h"
 
 namespace android {
 namespace vintf {
 
-bool MatrixKernel::operator==(const MatrixKernel &other) const {
-    if (mMinLts != other.mMinLts)
-        return false;
-    if (mConfigs != other.mConfigs)
-        return false;
-    return true;
-}
+// An object that represents kernel requirement information that VintfObject exposes.
+struct KernelRequirement {
+    KernelRequirement(KernelVersion minLts, Level level) : mMinLts(minLts), mLevel(level) {}
+    inline const KernelVersion& minLts() const { return mMinLts; }
+    inline Level level() const { return mLevel; }
 
-bool MatrixKernel::setSourceMatrixLevel(Level level) {
-    if (mSourceMatrixLevel != Level::UNSPECIFIED) return false;
-    mSourceMatrixLevel = level;
-    return true;
-}
+   private:
+    KernelVersion mMinLts;
+    Level mLevel;
+};
 
-Level MatrixKernel::getSourceMatrixLevel() const {
-    return mSourceMatrixLevel;
-}
-
-} // namespace vintf
-} // namespace android
+}  // namespace vintf
+}  // namespace android
