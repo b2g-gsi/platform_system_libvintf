@@ -19,6 +19,7 @@
 #include <iostream>
 #include <utility>
 
+#include <android-base/logging.h>
 #include <android-base/strings.h>
 
 #include "parse_string.h"
@@ -285,6 +286,8 @@ bool CompatibilityMatrix::addAllKernelsAsOptional(CompatibilityMatrix* other, st
             continue;
         }
 
+        (void)kernelToAdd.setSourceMatrixLevel(other->level());
+
         KernelVersion minLts = kernelToAdd.minLts();
         if (!addKernel(std::move(kernelToAdd), error)) {
             if (error) {
@@ -475,6 +478,15 @@ bool CompatibilityMatrix::matchInstance(const std::string& halName, const Versio
 
 std::string CompatibilityMatrix::getVendorNdkVersion() const {
     return type() == SchemaType::DEVICE ? device.mVendorNdk.version() : "";
+}
+
+Level CompatibilityMatrix::getSourceMatrixLevel(const MatrixKernel* matrixKernel) const {
+    CHECK(std::find_if(framework.mKernels.begin(), framework.mKernels.end(),
+                       [matrixKernel](const auto& e) { return &e == matrixKernel; }) !=
+          framework.mKernels.end());
+    Level ret = matrixKernel->getSourceMatrixLevel();
+    if (ret != Level::UNSPECIFIED) return ret;
+    return level();
 }
 
 } // namespace vintf

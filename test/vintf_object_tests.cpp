@@ -506,6 +506,10 @@ class VintfObjectTestBase : public ::testing::Test {
         return vintfObject->checkCompatibility(xmls, error);
     }
 
+    MockRuntimeInfoFactory& runtimeInfoFactory() {
+        return static_cast<MockRuntimeInfoFactory&>(*vintfObject->getRuntimeInfoFactory());
+    }
+
     std::string productModel;
     std::unique_ptr<VintfObject> vintfObject;
 };
@@ -687,9 +691,6 @@ class VintfObjectRuntimeInfoTest : public VintfObjectTestBase {
     virtual void TearDown() {
         Mock::VerifyAndClear(&runtimeInfoFactory());
         Mock::VerifyAndClear(runtimeInfoFactory().getInfo().get());
-    }
-    MockRuntimeInfoFactory& runtimeInfoFactory() {
-        return static_cast<MockRuntimeInfoFactory&>(*vintfObject->getRuntimeInfoFactory());
     }
 };
 
@@ -1562,6 +1563,80 @@ TEST_P(FrameworkManifestTest, Existence) {
 }
 INSTANTIATE_TEST_SUITE_P(, FrameworkManifestTest,
                          ::testing::Combine(Bool(), Bool(), Bool(), Bool()));
+
+class GetCompatibleKernelRequirementTest : public MultiMatrixTest {
+   protected:
+    void SetUp() override {
+        MultiMatrixTest::SetUp();
+        SetUpMockSystemMatrices(systemMatrixKernelXmls);
+        expectTargetFcmVersion(1);
+    }
+};
+
+TEST_F(GetCompatibleKernelRequirementTest, Version1) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 1}, {{"CONFIG_A1", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    ASSERT_TRUE(kreq.has_value());
+    EXPECT_EQ(1u, kreq->level());
+    EXPECT_EQ(KernelVersion(1, 0, 0), kreq->minLts());
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, Version1Incompat) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 0}, {});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    EXPECT_FALSE(kreq.has_value())
+        << "Should be incompatible because CONFIG_A1 is missing, but get: (" << kreq->level()
+        << ", " << kreq->minLts() << ")";
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, Version2) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 1}, {{"CONFIG_B1", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    ASSERT_TRUE(kreq.has_value());
+    EXPECT_EQ(1u, kreq->level());
+    EXPECT_EQ(KernelVersion(2, 0, 0), kreq->minLts());
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, Version2FutureConfigIncompat) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 0}, {{"CONFIG_B2", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    EXPECT_FALSE(kreq.has_value())
+        << "CONFIG_B2 is from 2.xml and should not be compatible, but get: (" << kreq->level()
+        << ", " << kreq->minLts() << ")";
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrix) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({3, 0, 1}, {{"CONFIG_C2", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    ASSERT_TRUE(kreq.has_value());
+    EXPECT_EQ(2u, kreq->level()) << "Should get 3.0.0 from 2.xml because 1.xml doesn't have 3.0.x";
+    EXPECT_EQ(KernelVersion(3, 0, 0), kreq->minLts());
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromOldestMatrixPossible) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 1}, {{"CONFIG_D2", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    ASSERT_TRUE(kreq.has_value());
+    EXPECT_EQ(2u, kreq->level()) << "Should get 4.0.0 from 2.xml even though it exists in 3.xml";
+    EXPECT_EQ(KernelVersion(4, 0, 0), kreq->minLts());
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrixIncompat) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 0}, {{"CONFIG_D3", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    ASSERT_FALSE(kreq.has_value())
+        << "CONFIG_D3 is from 3.xml and should not be compatible, but get: (" << kreq->level()
+        << ", " << kreq->minLts() << ")";
+}
+
+TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromEvenNewerMatrix) {
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({5, 0, 1}, {{"CONFIG_E3", "y"}});
+    auto kreq = vintfObject->getCompatibleKernelRequirement();
+    ASSERT_TRUE(kreq.has_value());
+    EXPECT_EQ(3u, kreq->level())
+        << "Should get 5.0.0 from 3.xml because neither 1.xml nor 2.xml has 5.0.x";
+    EXPECT_EQ(KernelVersion(5, 0, 0), kreq->minLts());
+}
 
 }  // namespace testing
 }  // namespace vintf

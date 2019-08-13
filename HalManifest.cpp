@@ -333,7 +333,8 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix &mat, std::string
             return false;
         }
 
-        if (!!kernel() && !kernel()->matchKernelRequirements(mat.framework.mKernels, error)) {
+        if (!!kernel() &&
+            kernel()->getMatchedKernelRequirements(mat.framework.mKernels, error).empty()) {
             return false;
         }
     }
