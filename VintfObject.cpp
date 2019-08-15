@@ -809,6 +809,36 @@ int32_t VintfObject::checkDeprecation(std::string* error) {
     return checkDeprecation(inManifest, error);
 }
 
+std::optional<KernelRequirement> VintfObject::getCompatibleKernelRequirement(std::string* error) {
+    auto matrix = getFrameworkCompatibilityMatrix();
+    if (!matrix) {
+        if (error) *error = "Cannot retrieve framework compatibility matrix";
+        return std::nullopt;
+    }
+    auto runtime_info = getRuntimeInfo();
+    if (!runtime_info) {
+        if (error) *error = "Cannot retrieve runtime information";
+        return std::nullopt;
+    }
+    auto reqs =
+        runtime_info->mKernel.getMatchedKernelRequirements(matrix->framework.mKernels, error);
+    if (reqs.empty()) {
+        if (error) error->insert(0, "Cannot find any matched kernel requirements: ");
+        return std::nullopt;
+    }
+    for (const MatrixKernel* matrixKernel : reqs) {
+        if (matrixKernel->conditions().empty()) {
+            return KernelRequirement(matrixKernel->minLts(),
+                                     matrix->getSourceMatrixLevel(matrixKernel));
+        }
+    }
+    KernelRequirement ret(reqs[0]->minLts(), matrix->getSourceMatrixLevel(reqs[0]));
+    LOG(ERROR) << "Cannot find kernel requirement with empty conditions; "
+               << "this should not happen. Returning (" << ret.minLts() << ", " << ret.level()
+               << ") as a heuristic.";
+    return ret;
+}
+
 const std::unique_ptr<FileSystem>& VintfObject::getFileSystem() {
     return mFileSystem;
 }

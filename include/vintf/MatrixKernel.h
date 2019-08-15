@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "KernelConfigTypedValue.h"
+#include "Level.h"
 #include "Version.h"
 
 namespace android {
@@ -61,9 +62,20 @@ struct MatrixKernel {
     friend struct CompatibilityMatrix;
     friend class AssembleVintfImpl;
 
+    bool setSourceMatrixLevel(Level level);
+    Level getSourceMatrixLevel() const;
+
     KernelVersion mMinLts;
     std::vector<KernelConfig> mConfigs;
     std::vector<KernelConfig> mConditions;
+
+    // The "level" field of compatibility matrix that this <kernel> tag is
+    // originally from. Note: this field is *NOT* emitted in the serialized
+    // form, which means this information is lost when the combined
+    // compatibility matrix is serialized.
+    // If UNSPECIFIED, this value should be retrieved from the parent
+    // CompatibilityMatrix object.
+    Level mSourceMatrixLevel = Level::UNSPECIFIED;
 };
 
 } // namespace vintf

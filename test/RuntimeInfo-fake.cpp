@@ -19,6 +19,17 @@
 namespace android {
 namespace vintf {
 namespace details {
+
+MockRuntimeInfo::MockRuntimeInfo() {
+    kernel_info_.mVersion = {3, 18, 31};
+    kernel_info_.mConfigs = {{"CONFIG_64BIT", "y"},
+                             {"CONFIG_ANDROID_BINDER_DEVICES", "\"binder,hwbinder\""},
+                             {"CONFIG_ARCH_MMAP_RND_BITS", "24"},
+                             {"CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES", "\"\""},
+                             {"CONFIG_ILLEGAL_POINTER_VALUE", "0xdead000000000000"}};
+    ON_CALL(*this, fetchAllInformation(_)).WillByDefault(Invoke(this, &MockRuntimeInfo::doFetch));
+}
+
 status_t MockRuntimeInfo::doFetch(RuntimeInfo::FetchFlags) {
     if (failNextFetch_) {
         failNextFetch_ = false;
@@ -30,14 +41,13 @@ status_t MockRuntimeInfo::doFetch(RuntimeInfo::FetchFlags) {
     mOsVersion = "#4 SMP PREEMPT Wed Feb 1 18:10:52 PST 2017";
     mHardwareId = "aarch64";
     mKernelSepolicyVersion = 30;
-    mKernel.mVersion = {3, 18, 31};
-    mKernel.mConfigs = {{"CONFIG_64BIT", "y"},
-                        {"CONFIG_ANDROID_BINDER_DEVICES", "\"binder,hwbinder\""},
-                        {"CONFIG_ARCH_MMAP_RND_BITS", "24"},
-                        {"CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES", "\"\""},
-                        {"CONFIG_ILLEGAL_POINTER_VALUE", "0xdead000000000000"}};
-
+    mKernel = kernel_info_;
     return OK;
+}
+void MockRuntimeInfo::setNextFetchKernelInfo(KernelVersion&& v,
+                                             std::map<std::string, std::string>&& configs) {
+    kernel_info_.mVersion = std::move(v);
+    kernel_info_.mConfigs = std::move(configs);
 }
 
 }  // namespace details
