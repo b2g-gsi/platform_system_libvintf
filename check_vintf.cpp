@@ -15,14 +15,19 @@
  */
 
 #include <getopt.h>
+#include <sysexits.h>
 #include <unistd.h>
 
 #include <iostream>
 #include <map>
 
+#include <android-base/file.h>
 #include <android-base/parseint.h>
+#include <android-base/strings.h>
 #include <utils/Errors.h>
+#include <vintf/KernelConfigParser.h>
 #include <vintf/VintfObject.h>
+#include <vintf/parse_string.h>
 #include <vintf/parse_xml.h>
 #include "utils.h"
 
@@ -33,31 +38,43 @@ namespace details {
 // fake sysprops
 using Properties = std::map<std::string, std::string>;
 
+using Dirmap = std::map<std::string, std::string>;
+
 enum Option : int {
     DUMP_FILE_LIST = 1,
     ROOTDIR,
     HELP,
     PROPERTY,
     CHECK_COMPAT,
+    DIR_MAP,
+    KERNEL,
 };
 // command line arguments
 using Args = std::multimap<Option, std::string>;
 
-class HostFileSystem : public FileSystemUnderPath {
+class HostFileSystem : public details::FileSystemImpl {
    public:
-    HostFileSystem(const std::string& rootdir) : FileSystemUnderPath(rootdir) {}
+    HostFileSystem(const Dirmap& dirmap) : mDirMap(dirmap) {}
     status_t fetch(const std::string& path, std::string* fetched,
                    std::string* error) const override {
-        status_t status = FileSystemUnderPath::fetch(path, fetched, error);
-        std::cerr << "Debug: Fetch '" << getRootDir() << path << "': " << toString(status)
-                  << std::endl;
+        auto resolved = resolve(path);
+        if (resolved.empty()) {
+            std::cerr << "Error: Cannot resolve path " << path;
+            return UNKNOWN_ERROR;
+        }
+        status_t status = details::FileSystemImpl::fetch(resolved, fetched, error);
+        std::cerr << "Debug: Fetch '" << resolved << "': " << toString(status) << std::endl;
         return status;
     }
     status_t listFiles(const std::string& path, std::vector<std::string>* out,
                        std::string* error) const override {
-        status_t status = FileSystemUnderPath::listFiles(path, out, error);
-        std::cerr << "Debug: List '" << getRootDir() << path << "': " << toString(status)
-                  << std::endl;
+        auto resolved = resolve(path);
+        if (resolved.empty()) {
+            std::cerr << "Error: Cannot resolve path " << path;
+            return UNKNOWN_ERROR;
+        }
+        status_t status = details::FileSystemImpl::listFiles(resolved, out, error);
+        std::cerr << "Debug: List '" << resolved << "': " << toString(status) << std::endl;
         return status;
     }
 
@@ -65,6 +82,19 @@ class HostFileSystem : public FileSystemUnderPath {
     static std::string toString(status_t status) {
         return status == OK ? "SUCCESS" : strerror(-status);
     }
+    std::string resolve(const std::string& path) const {
+        for (auto [prefix, mappedPath] : mDirMap) {
+            if (path == prefix) {
+                return mappedPath;
+            }
+            if (android::base::StartsWith(path, prefix + "/")) {
+                return mappedPath + "/" + path.substr(prefix.size() + 1);
+            }
+        }
+        return "";
+    }
+
+    Dirmap mDirMap;
 };
 
 class PresetPropertyFetcher : public PropertyFetcher {
@@ -100,6 +130,49 @@ class PresetPropertyFetcher : public PropertyFetcher {
 
    private:
     std::map<std::string, std::string> mProps;
+};
+
+struct StaticRuntimeInfo : public RuntimeInfo {
+    KernelVersion kernelVersion;
+    std::string kernelConfigFile;
+
+    status_t fetchAllInformation(FetchFlags flags) override {
+        if (flags & RuntimeInfo::FetchFlag::CPU_VERSION) {
+            mKernel.mVersion = kernelVersion;
+            std::cerr << "Debug: fetched kernel version " << kernelVersion << std::endl;
+        }
+        if (flags & RuntimeInfo::FetchFlag::CONFIG_GZ) {
+            std::string content;
+            if (!android::base::ReadFileToString(kernelConfigFile, &content)) {
+                std::cerr << "Error: Cannot read " << kernelConfigFile << std::endl;
+                return UNKNOWN_ERROR;
+            }
+            KernelConfigParser parser;
+            auto status = parser.processAndFinish(content);
+            if (status != OK) {
+                return status;
+            }
+            mKernel.mConfigs = std::move(parser.configs());
+            std::cerr << "Debug: read kernel configs from " << kernelConfigFile << std::endl;
+        }
+        if (flags & RuntimeInfo::FetchFlag::POLICYVERS) {
+            mKernelSepolicyVersion = SIZE_MAX;
+        }
+        return OK;
+    }
+};
+
+struct StubRuntimeInfo : public RuntimeInfo {
+    status_t fetchAllInformation(FetchFlags) override { return UNKNOWN_ERROR; }
+};
+
+struct StaticRuntimeInfoFactory : public ObjectFactory<RuntimeInfo> {
+    std::shared_ptr<RuntimeInfo> info;
+    StaticRuntimeInfoFactory(std::shared_ptr<RuntimeInfo> i) : info(i) {}
+    std::shared_ptr<RuntimeInfo> make_shared() const override {
+        if (info) return info;
+        return std::make_shared<StubRuntimeInfo>();
+    }
 };
 
 // helper functions
@@ -151,6 +224,8 @@ Args parseArgs(int argc, char** argv) {
         {"help", no_argument, &longOptFlag, HELP},
         {"property", required_argument, &longOptFlag, PROPERTY},
         {"check-compat", no_argument, &longOptFlag, CHECK_COMPAT},
+        {"dirmap", required_argument, &longOptFlag, DIR_MAP},
+        {"kernel", required_argument, &longOptFlag, KERNEL},
         {0, 0, 0, 0}};
     std::map<int, Option> shortopts{
         {'h', HELP}, {'D', PROPERTY}, {'c', CHECK_COMPAT},
@@ -176,14 +251,43 @@ Args parseArgs(int argc, char** argv) {
 }
 
 template <typename T>
-Properties getProperties(const T& args) {
-    Properties ret;
+std::map<std::string, std::string> splitArgs(const T& args, char split) {
+    std::map<std::string, std::string> ret;
     for (const auto& arg : args) {
-        auto pos = arg.find('=');
+        auto pos = arg.find(split);
         auto key = arg.substr(0, pos);
         auto value = pos == std::string::npos ? std::string{} : arg.substr(pos + 1);
         ret[key] = value;
     }
+    return ret;
+}
+template <typename T>
+Properties getProperties(const T& args) {
+    return splitArgs(args, '=');
+}
+
+template <typename T>
+Dirmap getDirmap(const T& args) {
+    return splitArgs(args, ':');
+}
+
+template <typename T>
+std::shared_ptr<StaticRuntimeInfo> getRuntimeInfo(const T& args) {
+    auto ret = std::make_shared<StaticRuntimeInfo>();
+    if (std::distance(args.begin(), args.end()) > 1) {
+        std::cerr << "Error: Can't have multiple --kernel options" << std::endl;
+        return nullptr;
+    }
+    auto pair = android::base::Split(*args.begin(), ":");
+    if (pair.size() != 2) {
+        std::cerr << "Error: Invalid --kernel" << std::endl;
+        return nullptr;
+    }
+    if (!parse(pair[0], &ret->kernelVersion)) {
+        std::cerr << "Error: Cannot parse " << pair[0] << " as kernel version" << std::endl;
+        return nullptr;
+    }
+    ret->kernelConfigFile = std::move(pair[1]);
     return ret;
 }
 
@@ -195,8 +299,16 @@ int usage(const char* me) {
         << "                that is required to be used by --check-compat." << std::endl
         << "        -c, --check-compat: check compatibility for files under the root" << std::endl
         << "                directory specified by --root-dir." << std::endl
-        << "        --rootdir=<dir>: specify root directory for all metadata." << std::endl
+        << "        --rootdir=<dir>: specify root directory for all metadata. Same as " << std::endl
+        << "                --dirmap /:<dir>" << std::endl
         << "        -D, --property <key>=<value>: specify sysprops." << std::endl
+        << "        --dirmap </system:/dir/to/system> [--dirmap </vendor:/dir/to/vendor>[...]]"
+        << std::endl
+        << "                Map partitions to directories. Cannot be specified with --rootdir."
+        << "        --kernel <x.y.z:path/to/config>" << std::endl
+        << "                Use the given kernel version and config to check. If" << std::endl
+        << "                unspecified, kernel requirements are skipped." << std::endl
+        << std::endl
         << "        --help: show this message." << std::endl
         << std::endl
         << "    Example:" << std::endl
@@ -216,17 +328,24 @@ int usage(const char* me) {
         << "            --property ro.boot.product.hardware.sku=`adb shell getprop "
            "ro.boot.product.hardware.sku`"
         << std::endl;
-    return 1;
+    return EX_USAGE;
 }
 
-int checkAllFiles(const std::string& rootdir, const Properties& props, std::string* error) {
+int checkAllFiles(const Dirmap& dirmap, const Properties& props,
+                  std::shared_ptr<StaticRuntimeInfo> runtimeInfo, std::string* error) {
     auto hostPropertyFetcher = std::make_unique<PresetPropertyFetcher>();
     hostPropertyFetcher->setProperties(props);
-    auto vintfObject = VintfObject::Builder()
-                           .setFileSystem(std::make_unique<HostFileSystem>(rootdir))
-                           .setPropertyFetcher(std::move(hostPropertyFetcher))
-                           .build();
-    return vintfObject->checkCompatibility(error, CheckFlags::DISABLE_RUNTIME_INFO);
+
+    CheckFlags::Type flags = CheckFlags::DEFAULT;
+    if (!runtimeInfo) flags = flags.disableRuntimeInfo();
+
+    auto vintfObject =
+        VintfObject::Builder()
+            .setFileSystem(std::make_unique<HostFileSystem>(dirmap))
+            .setPropertyFetcher(std::move(hostPropertyFetcher))
+            .setRuntimeInfoFactory(std::make_unique<StaticRuntimeInfoFactory>(runtimeInfo))
+            .build();
+    return vintfObject->checkCompatibility(error, flags);
 }
 
 }  // namespace details
@@ -255,32 +374,49 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    auto rootdirs = iterateValues(args, ROOTDIR);
-    auto properties = getProperties(iterateValues(args, PROPERTY));
-
     auto checkCompat = iterateValues(args, CHECK_COMPAT);
-    if (!checkCompat.empty()) {
-        if (rootdirs.empty()) {
-            std::cerr << "Missing --rootdir option." << std::endl;
-            return usage(argv[0]);
-        }
-        int ret = COMPATIBLE;
-        for (const auto& rootdir : rootdirs) {
-            std::cerr << "Debug: checking files under " << rootdir << "..." << std::endl;
-            std::string error;
-            int compat = checkAllFiles(rootdir, properties, &error);
-            std::cerr << "Debug: files under " << rootdir
-                      << (compat == COMPATIBLE
-                              ? " is compatible"
-                              : compat == INCOMPATIBLE ? " are incompatible"
-                                                       : (" has encountered an error: " + error))
-                      << std::endl;
-        }
-        if (ret == COMPATIBLE) {
-            std::cout << "true" << std::endl;
-        }
-        return ret;
+    if (checkCompat.empty()) {
+        return usage(argv[0]);
     }
 
-    return usage(argv[0]);
+    auto rootdirs = iterateValues(args, ROOTDIR);
+    if (!rootdirs.empty()) {
+        if (std::distance(rootdirs.begin(), rootdirs.end()) > 1) {
+            std::cerr << "Error: Can't have multiple --rootdir options" << std::endl;
+            return usage(argv[0]);
+        }
+        args.emplace(DIR_MAP, "/:" + *rootdirs.begin());
+    }
+
+    auto properties = getProperties(iterateValues(args, PROPERTY));
+    auto dirmap = getDirmap(iterateValues(args, DIR_MAP));
+
+    std::shared_ptr<StaticRuntimeInfo> runtimeInfo;
+    auto kernelArgs = iterateValues(args, KERNEL);
+    if (!kernelArgs.empty()) {
+        runtimeInfo = getRuntimeInfo(kernelArgs);
+        if (runtimeInfo == nullptr) {
+            return usage(argv[0]);
+        }
+    }
+
+    std::string error;
+    if (dirmap.empty()) {
+        std::cerr << "Missing --rootdir or --dirmap option." << std::endl;
+        return usage(argv[0]);
+    }
+
+    int compat = checkAllFiles(dirmap, properties, runtimeInfo, &error);
+
+    if (compat == COMPATIBLE) {
+        std::cout << "COMPATIBLE" << std::endl;
+        return EX_OK;
+    }
+    if (compat == INCOMPATIBLE) {
+        std::cerr << "Error: files are incompatible: " << error << std::endl;
+        std::cout << "INCOMPATIBLE" << std::endl;
+        return EX_DATAERR;
+    }
+    std::cerr << "Error: " << strerror(-compat) << ": " << error << std::endl;
+    return EX_SOFTWARE;
 }
