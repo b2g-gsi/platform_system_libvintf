@@ -48,7 +48,6 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>, public XmlFileGroup<Mat
 
     SchemaType type() const;
     Level level() const;
-    Version getMinimumMetaVersion() const;
 
     // If the corresponding <xmlfile> with the given version exists, for the first match,
     // - Return the overridden <path> if it is present,

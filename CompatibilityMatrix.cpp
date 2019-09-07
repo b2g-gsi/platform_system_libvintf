@@ -96,12 +96,6 @@ Level CompatibilityMatrix::level() const {
     return mLevel;
 }
 
-Version CompatibilityMatrix::getMinimumMetaVersion() const {
-    // TODO(b/62801658): this needs to depend on whether there are 1.1 requirements
-    // (e.g. required <xmlfile> entry)
-    return {1, 0};
-}
-
 status_t CompatibilityMatrix::fetchAllInformation(const FileSystem* fileSystem,
                                                   const std::string& path, std::string* error) {
     return details::fetchAllInformation(fileSystem, path, gCompatibilityMatrixConverter, this,

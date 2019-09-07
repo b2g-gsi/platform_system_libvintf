@@ -403,9 +403,19 @@ std::string expandInstances(const MatrixHal& req, const VersionRange& vr, bool b
     size_t count = 0;
     req.forEachInstance(vr, [&](const auto& matrixInstance) {
         if (count > 0) s += " AND ";
-        s += toFQNameString(vr, matrixInstance.interface(),
-                            matrixInstance.isRegex() ? matrixInstance.regexPattern()
-                                                     : matrixInstance.exactInstance());
+        auto instance = matrixInstance.isRegex() ? matrixInstance.regexPattern()
+                                                 : matrixInstance.exactInstance();
+        switch (req.format) {
+            case HalFormat::AIDL: {
+                // Hide fake version when printing human-readable error messages.
+                s += toFQNameString(matrixInstance.interface(), instance);
+            } break;
+            case HalFormat::HIDL:
+                [[fallthrough]];
+            case HalFormat::NATIVE: {
+                s += toFQNameString(vr, matrixInstance.interface(), instance);
+            } break;
+        }
         count++;
         return true;
     });
@@ -513,6 +523,10 @@ std::string toFQNameString(const std::string& package, const VersionRange& range
 std::string toFQNameString(const VersionRange& range, const std::string& interface,
                            const std::string& instance) {
     return toFQNameString("", range, interface, instance);
+}
+
+std::string toFQNameString(const std::string& interface, const std::string& instance) {
+    return interface + "/" + instance;
 }
 
 std::ostream& operator<<(std::ostream& os, const FqInstance& fqInstance) {

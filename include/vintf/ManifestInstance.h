@@ -53,8 +53,8 @@ class ManifestInstance {
     // Convenience methods.
     // return package@version::interface/instance
     const FqInstance& getFqInstance() const;
-    // return @version::interface/instance
-    FqInstance getFqInstanceNoPackage() const;
+    // return [@version::]interface/instance printing and writing XML.
+    std::string getSimpleFqInstance() const;
 
    private:
     FqInstance mFqInstance;

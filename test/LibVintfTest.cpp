@@ -19,16 +19,17 @@
 #include <algorithm>
 #include <functional>
 
+#include <android-base/logging.h>
+#include <android-base/parseint.h>
+#include <android-base/strings.h>
+#include <gtest/gtest.h>
+
 #include <vintf/CompatibilityMatrix.h>
 #include <vintf/KernelConfigParser.h>
 #include <vintf/VintfObject.h>
 #include <vintf/parse_string.h>
 #include <vintf/parse_xml.h>
-
-#include <android-base/logging.h>
-#include <android-base/parseint.h>
-#include <android-base/strings.h>
-#include <gtest/gtest.h>
+#include "test_constants.h"
 
 namespace android {
 namespace vintf {
@@ -203,6 +204,8 @@ public:
     }
 };
 
+// clang-format off
+
 TEST_F(LibVintfTest, ArchOperatorOr) {
     Arch a = Arch::ARCH_EMPTY;
     a |= Arch::ARCH_32;
@@ -247,7 +250,7 @@ TEST_F(LibVintfTest, FutureManifestCompatible) {
                                          {"IFoo", {"IFoo", {"default"}}},
                                      }});
     std::string manifestXml =
-        "<manifest version=\"1.0\" type=\"device\" might_add=\"true\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\" might_add=\"true\">\n"
         "    <hal format=\"hidl\" attribuet_might_be_added=\"value\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -269,7 +272,7 @@ TEST_F(LibVintfTest, HalManifestConverter) {
     std::string xml =
         gHalManifestConverter(vm, SerializeFlags::NO_TAGS.enableHals().enableSepolicy());
     EXPECT_EQ(xml,
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.camera</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -306,7 +309,7 @@ TEST_F(LibVintfTest, HalManifestConverterFramework) {
     HalManifest vm = testFrameworkManfiest();
     std::string xml = gHalManifestConverter(vm, SerializeFlags::NO_TAGS.enableHals().enableVndk());
     EXPECT_EQ(xml,
-        "<manifest version=\"1.0\" type=\"framework\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hidl.manager</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -336,9 +339,9 @@ TEST_F(LibVintfTest, HalManifestConverterFramework) {
 TEST_F(LibVintfTest, HalManifestOptional) {
     HalManifest vm;
     EXPECT_TRUE(gHalManifestConverter(&vm,
-            "<manifest version=\"1.0\" type=\"device\"></manifest>"));
+            "<manifest " + kMetaVersionStr + " type=\"device\"></manifest>"));
     EXPECT_TRUE(gHalManifestConverter(&vm,
-            "<manifest version=\"1.0\" type=\"device\">"
+            "<manifest " + kMetaVersionStr + " type=\"device\">"
             "    <hal>"
             "        <name>android.hidl.manager</name>"
             "        <transport>hwbinder</transport>"
@@ -346,7 +349,7 @@ TEST_F(LibVintfTest, HalManifestOptional) {
             "    </hal>"
             "</manifest>"));
     EXPECT_FALSE(gHalManifestConverter(&vm,
-            "<manifest version=\"1.0\" type=\"device\">"
+            "<manifest " + kMetaVersionStr + " type=\"device\">"
             "    <hal>"
             "        <name>android.hidl.manager</name>"
             "        <version>1.0</version>"
@@ -357,7 +360,7 @@ TEST_F(LibVintfTest, HalManifestOptional) {
 TEST_F(LibVintfTest, HalManifestNative) {
     HalManifest vm;
     EXPECT_TRUE(gHalManifestConverter(&vm,
-                                      "<manifest version=\"1.0\" type=\"device\">"
+                                      "<manifest " + kMetaVersionStr + " type=\"device\">"
                                       "    <hal format=\"native\">"
                                       "        <name>foo</name>"
                                       "        <version>1.0</version>"
@@ -365,7 +368,7 @@ TEST_F(LibVintfTest, HalManifestNative) {
                                       "</manifest>"))
         << gHalManifestConverter.lastError();
     EXPECT_FALSE(gHalManifestConverter(&vm,
-                                       "<manifest version=\"1.0\" type=\"device\">"
+                                       "<manifest " + kMetaVersionStr + " type=\"device\">"
                                        "    <hal format=\"native\">"
                                        "        <name>foo</name>"
                                        "        <version>1.0</version>"
@@ -379,7 +382,7 @@ TEST_F(LibVintfTest, HalManifestNative) {
 TEST_F(LibVintfTest, HalManifestDuplicate) {
     HalManifest vm;
     EXPECT_FALSE(gHalManifestConverter(&vm,
-                                       "<manifest version=\"1.0\" type=\"device\">"
+                                       "<manifest " + kMetaVersionStr + " type=\"device\">"
                                        "    <hal>"
                                        "        <name>android.hidl.manager</name>"
                                        "        <transport>hwbinder</transport>"
@@ -389,7 +392,7 @@ TEST_F(LibVintfTest, HalManifestDuplicate) {
                                        "</manifest>"))
         << "Should not allow duplicated major version in <hal>";
     EXPECT_FALSE(gHalManifestConverter(&vm,
-                                       "<manifest version=\"1.0\" type=\"device\">"
+                                       "<manifest " + kMetaVersionStr + " type=\"device\">"
                                        "    <hal>"
                                        "        <name>android.hidl.manager</name>"
                                        "        <transport>hwbinder</transport>"
@@ -407,7 +410,7 @@ TEST_F(LibVintfTest, HalManifestDuplicate) {
 TEST_F(LibVintfTest, HalManifestGetTransport) {
     HalManifest vm;
     EXPECT_TRUE(gHalManifestConverter(&vm,
-                                      "<manifest version=\"1.0\" type=\"device\">"
+                                      "<manifest " + kMetaVersionStr + " type=\"device\">"
                                       "    <hal>"
                                       "        <name>android.hidl.manager</name>"
                                       "        <transport>hwbinder</transport>"
@@ -601,7 +604,7 @@ TEST_F(LibVintfTest, CompatibilityMatrixConverter) {
     setAvb(cm, Version{2, 1});
     std::string xml = gCompatibilityMatrixConverter(cm);
     EXPECT_EQ(xml,
-            "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"native\" optional=\"false\">\n"
             "        <name>android.hardware.camera</name>\n"
             "        <version>1.2-3</version>\n"
@@ -663,7 +666,7 @@ TEST_F(LibVintfTest, DeviceCompatibilityMatrixCoverter) {
     set(cm, VndkVersionRange{25,0,1,5}, {"libjpeg.so", "libbase.so"});
     std::string xml = gCompatibilityMatrixConverter(cm);
     EXPECT_EQ(xml,
-        "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"native\" optional=\"false\">\n"
         "        <name>android.hidl.manager</name>\n"
         "        <version>1.0</version>\n"
@@ -909,7 +912,7 @@ TEST_F(LibVintfTest, RuntimeInfo) {
 
 TEST_F(LibVintfTest, MissingAvb) {
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.31\"></kernel>"
         "    <sepolicy>\n"
         "        <kernel-sepolicy-version>30</kernel-sepolicy-version>\n"
@@ -923,7 +926,7 @@ TEST_F(LibVintfTest, MissingAvb) {
 
 TEST_F(LibVintfTest, DisableAvb) {
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.31\"></kernel>"
         "    <sepolicy>\n"
         "        <kernel-sepolicy-version>30</kernel-sepolicy-version>\n"
@@ -948,7 +951,7 @@ TEST_F(LibVintfTest, HalCompat) {
     std::string error;
 
     std::string matrixXml =
-            "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\" optional=\"false\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <version>1.0</version>\n"
@@ -977,7 +980,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
     {
         std::string manifestXml =
-                "<manifest version=\"1.0\" type=\"device\">\n"
+                "<manifest " + kMetaVersionStr + " type=\"device\">\n"
                 "    <hal format=\"hidl\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <transport>hwbinder</transport>\n"
@@ -1009,7 +1012,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
     {
         std::string manifestXml =
-                "<manifest version=\"1.0\" type=\"device\">\n"
+                "<manifest " + kMetaVersionStr + " type=\"device\">\n"
                 "    <hal format=\"hidl\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <transport>hwbinder</transport>\n"
@@ -1032,7 +1035,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
     {
         std::string manifestXml =
-                "<manifest version=\"1.0\" type=\"device\">\n"
+                "<manifest " + kMetaVersionStr + " type=\"device\">\n"
                 "    <hal format=\"hidl\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <transport>hwbinder</transport>\n"
@@ -1063,7 +1066,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
     {
         std::string manifestXml =
-                "<manifest version=\"1.0\" type=\"device\">\n"
+                "<manifest " + kMetaVersionStr + " type=\"device\">\n"
                 "    <hal format=\"hidl\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <transport>hwbinder</transport>\n"
@@ -1094,7 +1097,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
     {
         std::string manifestXml =
-                "<manifest version=\"1.0\" type=\"device\">\n"
+                "<manifest " + kMetaVersionStr + " type=\"device\">\n"
                 "    <hal format=\"hidl\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <transport>hwbinder</transport>\n"
@@ -1135,7 +1138,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
     {
         std::string manifestXml =
-                "<manifest version=\"1.0\" type=\"device\">\n"
+                "<manifest " + kMetaVersionStr + " type=\"device\">\n"
                 "    <hal format=\"hidl\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <transport>hwbinder</transport>\n"
@@ -1168,7 +1171,7 @@ TEST_F(LibVintfTest, HalCompat) {
 
 TEST_F(LibVintfTest, Compat) {
     std::string manifestXml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.camera</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -1208,7 +1211,7 @@ TEST_F(LibVintfTest, Compat) {
         "</manifest>\n";
 
     std::string matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.camera</name>\n"
         "        <version>2.0-5</version>\n"
@@ -1255,7 +1258,7 @@ TEST_F(LibVintfTest, Compat) {
 
     // some smaller test cases
     matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.camera</name>\n"
         "        <version>3.4</version>\n"
@@ -1294,7 +1297,7 @@ TEST_F(LibVintfTest, HalManifestConverterXmlFile) {
     std::string xml = gHalManifestConverter(
         vm, SerializeFlags::NO_TAGS.enableHals().enableSepolicy().enableXmlFiles());
     EXPECT_EQ(xml,
-              "<manifest version=\"1.0\" type=\"device\">\n"
+              "<manifest " + kMetaVersionStr + " type=\"device\">\n"
               "    <hal format=\"hidl\">\n"
               "        <name>android.hardware.camera</name>\n"
               "        <transport>hwbinder</transport>\n"
@@ -1336,7 +1339,7 @@ TEST_F(LibVintfTest, CompatibilityMatrixConverterXmlFile) {
     addXmlFile(cm, "media_profile", {1, 0});
     std::string xml = gCompatibilityMatrixConverter(cm, SerializeFlags::XMLFILES_ONLY);
     EXPECT_EQ(xml,
-              "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+              "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
               "    <xmlfile format=\"dtd\" optional=\"true\">\n"
               "        <name>media_profile</name>\n"
               "        <version>1.0</version>\n"
@@ -1349,7 +1352,7 @@ TEST_F(LibVintfTest, CompatibilityMatrixConverterXmlFile) {
 
 TEST_F(LibVintfTest, CompatibilityMatrixConverterXmlFile2) {
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <xmlfile format=\"dtd\" optional=\"false\">\n"
         "        <name>media_profile</name>\n"
         "        <version>1.0</version>\n"
@@ -1365,7 +1368,7 @@ TEST_F(LibVintfTest, CompatibilityMatrixConverterXmlFile2) {
 
 TEST_F(LibVintfTest, ManifestXmlFilePathDevice) {
     std::string manifestXml =
-        "<manifest version=\"1.0\" type=\"device\">"
+        "<manifest " + kMetaVersionStr + " type=\"device\">"
         "    <xmlfile>"
         "        <name>media_profile</name>"
         "        <version>1.0</version>"
@@ -1379,7 +1382,7 @@ TEST_F(LibVintfTest, ManifestXmlFilePathDevice) {
 
 TEST_F(LibVintfTest, ManifestXmlFilePathFramework) {
     std::string manifestXml =
-        "<manifest version=\"1.0\" type=\"framework\">"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">"
         "    <xmlfile>"
         "        <name>media_profile</name>"
         "        <version>1.0</version>"
@@ -1393,7 +1396,7 @@ TEST_F(LibVintfTest, ManifestXmlFilePathFramework) {
 
 TEST_F(LibVintfTest, ManifestXmlFilePathOverride) {
     std::string manifestXml =
-        "<manifest version=\"1.0\" type=\"device\">"
+        "<manifest " + kMetaVersionStr + " type=\"device\">"
         "    <xmlfile>"
         "        <name>media_profile</name>"
         "        <version>1.0</version>"
@@ -1407,7 +1410,7 @@ TEST_F(LibVintfTest, ManifestXmlFilePathOverride) {
 
 TEST_F(LibVintfTest, ManifestXmlFilePathMissing) {
     std::string manifestXml =
-        "<manifest version=\"1.0\" type=\"device\">"
+        "<manifest " + kMetaVersionStr + " type=\"device\">"
         "    <xmlfile>"
         "        <name>media_profile</name>"
         "        <version>1.1</version>"
@@ -1420,7 +1423,7 @@ TEST_F(LibVintfTest, ManifestXmlFilePathMissing) {
 
 TEST_F(LibVintfTest, MatrixXmlFilePathFramework) {
     std::string matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">"
         "    <xmlfile format=\"dtd\" optional=\"true\">"
         "        <name>media_profile</name>"
         "        <version>2.0-1</version>"
@@ -1434,7 +1437,7 @@ TEST_F(LibVintfTest, MatrixXmlFilePathFramework) {
 
 TEST_F(LibVintfTest, MatrixXmlFilePathDevice) {
     std::string matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">"
         "    <xmlfile format=\"xsd\" optional=\"true\">"
         "        <name>media_profile</name>"
         "        <version>2.0-1</version>"
@@ -1448,7 +1451,7 @@ TEST_F(LibVintfTest, MatrixXmlFilePathDevice) {
 
 TEST_F(LibVintfTest, MatrixXmlFilePathOverride) {
     std::string matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">"
         "    <xmlfile format=\"xsd\" optional=\"true\">"
         "        <name>media_profile</name>"
         "        <version>2.0-1</version>"
@@ -1462,7 +1465,7 @@ TEST_F(LibVintfTest, MatrixXmlFilePathOverride) {
 
 TEST_F(LibVintfTest, MatrixXmlFilePathMissing) {
     std::string matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">"
         "    <xmlfile format=\"dtd\" optional=\"true\">"
         "        <name>media_profile</name>"
         "        <version>2.1</version>"
@@ -1567,7 +1570,7 @@ TEST_F(LibVintfTest, NetutilsWrapperMatrix) {
     CompatibilityMatrix matrix;
 
     matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">"
         "    <hal format=\"native\" optional=\"false\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.0</version>"
@@ -1580,7 +1583,7 @@ TEST_F(LibVintfTest, NetutilsWrapperMatrix) {
 #ifndef LIBVINTF_TARGET
 
     matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">"
         "    <hal format=\"native\" optional=\"false\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.0-1</version>"
@@ -1593,7 +1596,7 @@ TEST_F(LibVintfTest, NetutilsWrapperMatrix) {
         "Perhaps you mean '1.0'?");
 
     matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">"
         "    <hal format=\"native\" optional=\"false\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.1</version>"
@@ -1606,7 +1609,7 @@ TEST_F(LibVintfTest, NetutilsWrapperMatrix) {
         "Perhaps you mean '1.0'?");
 
     matrixXml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">"
         "    <hal format=\"native\" optional=\"false\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.0</version>"
@@ -1627,7 +1630,7 @@ TEST_F(LibVintfTest, NetutilsWrapperManifest) {
     HalManifest manifest;
 
     manifestXml =
-        "<manifest version=\"1.0\" type=\"framework\">"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">"
         "    <hal format=\"native\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.0</version>"
@@ -1640,7 +1643,7 @@ TEST_F(LibVintfTest, NetutilsWrapperManifest) {
 #ifndef LIBVINTF_TARGET
 
     manifestXml =
-        "<manifest version=\"1.0\" type=\"framework\">"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">"
         "    <hal format=\"native\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.1</version>"
@@ -1653,7 +1656,7 @@ TEST_F(LibVintfTest, NetutilsWrapperManifest) {
         "is specified.");
 
     manifestXml =
-        "<manifest version=\"1.0\" type=\"framework\">"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">"
         "    <hal format=\"native\">"
         "        <name>netutils-wrapper</name>"
         "        <version>1.0</version>"
@@ -1671,7 +1674,7 @@ TEST_F(LibVintfTest, NetutilsWrapperManifest) {
 
 TEST_F(LibVintfTest, KernelConfigConditionTest) {
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1712,7 +1715,7 @@ TEST_F(LibVintfTest, KernelConfigConditionTest) {
 
 TEST_F(LibVintfTest, KernelConfigConditionEmptyTest) {
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"4.4.0\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1740,7 +1743,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
     CompatibilityMatrix cm;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1765,7 +1768,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
     EXPECT_TRUE(runtime.checkCompatibility(cm, &error)) << error;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1791,7 +1794,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
         << "conditions met, so CONFIG_ARCH_MMAP_RND_BITS should not match";
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1815,7 +1818,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
         << gCompatibilityMatrixConverter.lastError();
     EXPECT_TRUE(runtime.checkCompatibility(cm, &error)) << error;
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1844,7 +1847,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
     EXPECT_TRUE(runtime.checkCompatibility(cm, &error));
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1874,7 +1877,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
         << "conditions have 'and' relationship, so CONFIG_ILLEGAL_POINTER_VALUE should not match";
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\"/>\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <conditions>\n"
@@ -1903,7 +1906,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
     EXPECT_TRUE(runtime.checkCompatibility(cm, &error)) << error;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <config>\n"
         "            <key>CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES</key>\n"
@@ -1945,7 +1948,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
     EXPECT_TRUE(runtime.checkCompatibility(cm, &error)) << error;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <config>\n"
         "            <key>CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES</key>\n"
@@ -1987,7 +1990,7 @@ TEST_F(LibVintfTest, KernelConfigConditionMatch) {
     EXPECT_FALSE(runtime.checkCompatibility(cm, &error)) << "all fragments should be used.";
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <kernel version=\"3.18.22\">\n"
         "        <config>\n"
         "            <key>CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES</key>\n"
@@ -2059,17 +2062,17 @@ TEST_F(LibVintfTest, MatrixLevel) {
     CompatibilityMatrix cm;
     std::string xml;
 
-    xml = "<compatibility-matrix version=\"1.0\" type=\"framework\"/>";
+    xml = "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\"/>";
     EXPECT_TRUE(gCompatibilityMatrixConverter(&cm, xml))
         << gCompatibilityMatrixConverter.lastError();
     EXPECT_EQ(Level::UNSPECIFIED, cm.level());
 
-    xml = "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"legacy\"/>";
+    xml = "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"legacy\"/>";
     EXPECT_TRUE(gCompatibilityMatrixConverter(&cm, xml))
         << gCompatibilityMatrixConverter.lastError();
     EXPECT_EQ(Level::LEGACY, cm.level());
 
-    xml = "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\"/>";
+    xml = "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\"/>";
     EXPECT_TRUE(gCompatibilityMatrixConverter(&cm, xml))
         << gCompatibilityMatrixConverter.lastError();
     EXPECT_EQ(1u, cm.level());
@@ -2079,15 +2082,15 @@ TEST_F(LibVintfTest, ManifestLevel) {
     HalManifest manifest;
     std::string xml;
 
-    xml = "<manifest version=\"1.0\" type=\"device\"/>";
+    xml = "<manifest " + kMetaVersionStr + " type=\"device\"/>";
     EXPECT_TRUE(gHalManifestConverter(&manifest, xml)) << gHalManifestConverter.lastError();
     EXPECT_EQ(Level::UNSPECIFIED, manifest.level());
 
-    xml = "<manifest version=\"1.0\" type=\"device\" target-level=\"legacy\"/>";
+    xml = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"legacy\"/>";
     EXPECT_TRUE(gHalManifestConverter(&manifest, xml)) << gHalManifestConverter.lastError();
     EXPECT_EQ(Level::LEGACY, manifest.level());
 
-    xml = "<manifest version=\"1.0\" type=\"device\" target-level=\"1\"/>";
+    xml = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\"/>";
     EXPECT_TRUE(gHalManifestConverter(&manifest, xml)) << gHalManifestConverter.lastError();
     EXPECT_EQ(1u, manifest.level());
 }
@@ -2098,12 +2101,12 @@ TEST_F(LibVintfTest, AddOptionalHal) {
     std::string error;
     std::string xml;
 
-    xml = "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\"/>";
+    xml = "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\"/>";
     EXPECT_TRUE(gCompatibilityMatrixConverter(&cm1, xml))
         << gCompatibilityMatrixConverter.lastError();
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0-1</version>\n"
@@ -2119,7 +2122,7 @@ TEST_F(LibVintfTest, AddOptionalHal) {
     EXPECT_TRUE(addAllHalsAsOptional(&cm1, &cm2, &error)) << error;
     xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
     EXPECT_EQ(xml,
-              "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+              "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
               "    <hal format=\"hidl\" optional=\"true\">\n"
               "        <name>android.hardware.foo</name>\n"
               "        <version>1.0-1</version>\n"
@@ -2138,7 +2141,7 @@ TEST_F(LibVintfTest, AddOptionalHalMinorVersion) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.2-3</version>\n"
@@ -2152,7 +2155,7 @@ TEST_F(LibVintfTest, AddOptionalHalMinorVersion) {
         << gCompatibilityMatrixConverter.lastError();
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0-4</version>\n"
@@ -2168,7 +2171,7 @@ TEST_F(LibVintfTest, AddOptionalHalMinorVersion) {
     EXPECT_TRUE(addAllHalsAsOptional(&cm1, &cm2, &error)) << error;
     xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
     EXPECT_EQ(xml,
-              "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+              "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
               "    <hal format=\"hidl\" optional=\"false\">\n"
               "        <name>android.hardware.foo</name>\n"
               "        <version>1.0-4</version>\n"
@@ -2187,7 +2190,7 @@ TEST_F(LibVintfTest, AddOptionalHalMajorVersion) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.2-3</version>\n"
@@ -2201,7 +2204,7 @@ TEST_F(LibVintfTest, AddOptionalHalMajorVersion) {
         << gCompatibilityMatrixConverter.lastError();
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.2-3</version>\n"
@@ -2218,7 +2221,7 @@ TEST_F(LibVintfTest, AddOptionalHalMajorVersion) {
     EXPECT_TRUE(addAllHalsAsOptional(&cm1, &cm2, &error)) << error;
     xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
     EXPECT_EQ(xml,
-              "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+              "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
               "    <hal format=\"hidl\" optional=\"false\">\n"
               "        <name>android.hardware.foo</name>\n"
               "        <version>1.2-3</version>\n"
@@ -2238,7 +2241,7 @@ TEST_F(LibVintfTest, AddOptionalHalMinorVersionDiffInstance) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0-1</version>\n"
@@ -2252,7 +2255,7 @@ TEST_F(LibVintfTest, AddOptionalHalMinorVersionDiffInstance) {
         << gCompatibilityMatrixConverter.lastError();
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.1-2</version>\n"
@@ -2268,7 +2271,7 @@ TEST_F(LibVintfTest, AddOptionalHalMinorVersionDiffInstance) {
     EXPECT_TRUE(addAllHalsAsOptional(&cm1, &cm2, &error)) << error;
     xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
     EXPECT_EQ(xml,
-              "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+              "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
               "    <hal format=\"hidl\" optional=\"false\">\n"
               "        <name>android.hardware.foo</name>\n"
               "        <version>1.0-1</version>\n"
@@ -2294,7 +2297,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstance) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -2313,7 +2316,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstance) {
         // should be in a new <hal> tag
         CompatibilityMatrix cm2;
         xml =
-            "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
             "    <hal format=\"hidl\" optional=\"false\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <version>2.0</version>\n"
@@ -2330,7 +2333,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstance) {
 
         xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
         EXPECT_EQ(xml,
-                  "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+                  "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
                   "    <hal format=\"hidl\" optional=\"false\">\n"
                   "        <name>android.hardware.foo</name>\n"
                   "        <version>1.0</version>\n"
@@ -2355,7 +2358,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstance) {
         // Test that 2.0::IFoo/strong should be added as an optional <hal> tag.
         CompatibilityMatrix cm2;
         xml =
-            "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
             "    <hal format=\"hidl\" optional=\"false\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <version>2.0</version>\n"
@@ -2373,7 +2376,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstance) {
 
         xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
         EXPECT_EQ(xml,
-                  "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+                  "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
                   "    <hal format=\"hidl\" optional=\"false\">\n"
                   "        <name>android.hardware.foo</name>\n"
                   "        <version>1.0</version>\n"
@@ -2410,7 +2413,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstanceSplit) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -2432,7 +2435,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstanceSplit) {
         << gCompatibilityMatrixConverter.lastError();
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>2.0</version>\n"
@@ -2456,7 +2459,7 @@ TEST_F(LibVintfTest, AddRequiredHalOverlapInstanceSplit) {
     EXPECT_TRUE(addAllHalsAsOptional(&cm1, &cm2, &error)) << error;
     xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::HALS_ONLY);
     EXPECT_EQ(
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -2492,7 +2495,7 @@ TEST_F(LibVintfTest, AddOptionalXmlFile) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <xmlfile format=\"xsd\" optional=\"true\">\n"
         "        <name>foo</name>\n"
         "        <version>1.0-2</version>\n"
@@ -2503,7 +2506,7 @@ TEST_F(LibVintfTest, AddOptionalXmlFile) {
         << gCompatibilityMatrixConverter.lastError();
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
         "    <xmlfile format=\"xsd\" optional=\"true\">\n"
         "        <name>foo</name>\n"
         "        <version>1.1-3</version>\n"
@@ -2516,7 +2519,7 @@ TEST_F(LibVintfTest, AddOptionalXmlFile) {
     EXPECT_TRUE(addAllXmlFilesAsOptional(&cm1, &cm2, &error)) << error;
     xml = gCompatibilityMatrixConverter(cm1, SerializeFlags::XMLFILES_ONLY);
     EXPECT_EQ(xml,
-              "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+              "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
               "    <xmlfile format=\"xsd\" optional=\"true\">\n"
               "        <name>foo</name>\n"
               "        <version>1.0-2</version>\n"
@@ -2536,7 +2539,7 @@ TEST_F(LibVintfTest, VendorNdk) {
     std::string xml;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
         "    <vendor-ndk>\n"
         "        <version>P</version>\n"
         "        <library>libbase.so</library>\n"
@@ -2552,7 +2555,7 @@ TEST_F(LibVintfTest, VendorNdk) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <vendor-ndk>\n"
             "        <version>27</version>\n"
             "        <library>libbase.so</library>\n"
@@ -2574,7 +2577,7 @@ TEST_F(LibVintfTest, VendorNdk) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <vendor-ndk>\n"
             "        <version>27</version>\n"
             "        <library>libbase.so</library>\n"
@@ -2591,7 +2594,7 @@ TEST_F(LibVintfTest, VendorNdk) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <vendor-ndk>\n"
             "        <version>P</version>\n"
             "        <library>libbase.so</library>\n"
@@ -2611,13 +2614,13 @@ TEST_F(LibVintfTest, MissingVendorNdkInMatrix) {
     std::string xml;
     std::string error;
 
-    xml = "<compatibility-matrix version=\"1.0\" type=\"device\"/>\n";
+    xml = "<compatibility-matrix " + kMetaVersionStr + " type=\"device\"/>\n";
     EXPECT_TRUE(gCompatibilityMatrixConverter(&cm, xml))
         << gCompatibilityMatrixConverter.lastError();
 
     {
         HalManifest manifest;
-        xml = "<manifest version=\"1.0\" type=\"framework\"/>\n";
+        xml = "<manifest " + kMetaVersionStr + " type=\"framework\"/>\n";
         EXPECT_TRUE(gHalManifestConverter(&manifest, xml)) << gHalManifestConverter.lastError();
 
         EXPECT_TRUE(manifest.checkCompatibility(cm, &error)) << error;
@@ -2626,7 +2629,7 @@ TEST_F(LibVintfTest, MissingVendorNdkInMatrix) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <vendor-ndk>\n"
             "        <version>P</version>\n"
             "        <library>libbase.so</library>\n"
@@ -2642,7 +2645,7 @@ TEST_F(LibVintfTest, DuplicatedVendorNdkVersion) {
     std::string error;
     HalManifest manifest;
     std::string xml =
-        "<manifest version=\"1.0\" type=\"framework\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
         "    <vendor-ndk>\n"
         "        <version>27</version>\n"
         "    </vendor-ndk>\n"
@@ -2658,7 +2661,7 @@ TEST_F(LibVintfTest, DuplicatedVendorNdkVersion) {
 TEST_F(LibVintfTest, ManifestHalOverride) {
     HalManifest manifest;
     std::string xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2682,12 +2685,12 @@ TEST_F(LibVintfTest, ManifestHalOverride) {
 // Test functionality of override="true" tag
 TEST_F(LibVintfTest, ManifestAddOverrideHalSimple) {
     HalManifest manifest;
-    std::string xml = "<manifest version=\"1.0\" type=\"device\"/>\n";
+    std::string xml = "<manifest " + kMetaVersionStr + " type=\"device\"/>\n";
     EXPECT_TRUE(gHalManifestConverter(&manifest, xml)) << gHalManifestConverter.lastError();
 
     HalManifest newManifest;
     xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2707,7 +2710,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalSimple) {
 TEST_F(LibVintfTest, ManifestAddOverrideHalSimpleOverride) {
     HalManifest manifest;
     std::string xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2718,7 +2721,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalSimpleOverride) {
 
     HalManifest newManifest;
     xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2739,7 +2742,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalSimpleOverride) {
 TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion) {
     HalManifest manifest;
     std::string xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2760,7 +2763,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion) {
 
     HalManifest newManifest;
     xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2776,7 +2779,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion) {
 
     manifest.addAllHals(&newManifest);
     EXPECT_EQ(
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.bar</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2808,7 +2811,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion) {
 TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion2) {
     HalManifest manifest;
     std::string xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2824,7 +2827,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion2) {
 
     HalManifest newManifest;
     xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2846,7 +2849,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalMultiVersion2) {
 TEST_F(LibVintfTest, ManifestAddOverrideHalRemoveAll) {
     HalManifest manifest;
     std::string xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2877,7 +2880,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalRemoveAll) {
 
     HalManifest newManifest;
     xml =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2887,7 +2890,7 @@ TEST_F(LibVintfTest, ManifestAddOverrideHalRemoveAll) {
 
     manifest.addAllHals(&newManifest);
     EXPECT_EQ(
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.bar</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -2908,11 +2911,11 @@ TEST_F(LibVintfTest, Empty) {
     std::string xml;
     std::string error;
 
-    xml = "<compatibility-matrix version=\"1.0\" type=\"device\"/>\n";
+    xml = "<compatibility-matrix " + kMetaVersionStr + " type=\"device\"/>\n";
     EXPECT_TRUE(gCompatibilityMatrixConverter(&cm, xml))
         << gCompatibilityMatrixConverter.lastError();
 
-    xml = "<manifest version=\"1.0\" type=\"framework\"/>\n";
+    xml = "<manifest " + kMetaVersionStr + " type=\"framework\"/>\n";
     EXPECT_TRUE(gHalManifestConverter(&manifest, xml)) << gHalManifestConverter.lastError();
 
     EXPECT_TRUE(manifest.checkCompatibility(cm, &error)) << error;
@@ -2924,7 +2927,7 @@ TEST_F(LibVintfTest, SystemSdk) {
     std::string error;
 
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
         "    <system-sdk>\n"
         "        <version>1</version>\n"
         "        <version>P</version>\n"
@@ -2937,7 +2940,7 @@ TEST_F(LibVintfTest, SystemSdk) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <system-sdk>\n"
             "        <version>1</version>\n"
             "        <version>P</version>\n"
@@ -2952,7 +2955,7 @@ TEST_F(LibVintfTest, SystemSdk) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <system-sdk>\n"
             "        <version>1</version>\n"
             "        <version>3</version>\n"
@@ -2966,7 +2969,7 @@ TEST_F(LibVintfTest, SystemSdk) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <system-sdk>\n"
             "        <version>1</version>\n"
             "    </system-sdk>\n"
@@ -3010,7 +3013,7 @@ TEST_F(LibVintfTest, MatrixDetailErrorMsg) {
 
     HalManifest manifest;
     xml =
-        "<manifest version=\"1.0\" type=\"device\" target-level=\"103\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"103\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -3026,7 +3029,7 @@ TEST_F(LibVintfTest, MatrixDetailErrorMsg) {
     {
         CompatibilityMatrix cm;
         xml =
-            "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"100\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"100\">\n"
             "    <hal format=\"hidl\" optional=\"false\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <version>1.2-3</version>\n"
@@ -3058,7 +3061,7 @@ TEST_F(LibVintfTest, MatrixDetailErrorMsg) {
     {
         CompatibilityMatrix cm;
         xml =
-            "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\" optional=\"false\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <version>1.2-3</version>\n"
@@ -3082,7 +3085,7 @@ TEST_F(LibVintfTest, MatrixDetailErrorMsg) {
     {
         CompatibilityMatrix cm;
         xml =
-            "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\" optional=\"false\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <version>1.2-3</version>\n"
@@ -3107,7 +3110,7 @@ TEST_F(LibVintfTest, DisabledHal) {
     std::string xml;
     HalManifest manifest;
     xml =
-        "<manifest version=\"1.0\" type=\"framework\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\" override=\"true\">\n"
         "        <transport>hwbinder</transport>\n"
         "        <name>android.hardware.foo</name>\n"
@@ -3142,7 +3145,7 @@ TEST_F(LibVintfTest, FqNameValid) {
 
     CompatibilityMatrix cm;
     xml =
-        "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -3165,7 +3168,7 @@ TEST_F(LibVintfTest, FqNameValid) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <transport>hwbinder</transport>\n"
@@ -3188,7 +3191,7 @@ TEST_F(LibVintfTest, FqNameValid) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <transport>hwbinder</transport>\n"
@@ -3203,7 +3206,7 @@ TEST_F(LibVintfTest, FqNameValid) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <transport>hwbinder</transport>\n"
@@ -3229,7 +3232,7 @@ TEST_F(LibVintfTest, FqNameValid) {
     {
         HalManifest manifest;
         xml =
-            "<manifest version=\"1.0\" type=\"framework\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
             "    <hal format=\"hidl\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <transport>hwbinder</transport>\n"
@@ -3307,7 +3310,7 @@ TEST_F(LibVintfTest, RegexInstanceValid) {
     std::string error;
 
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -3326,7 +3329,7 @@ TEST_F(LibVintfTest, RegexInstanceInvalid) {
     CompatibilityMatrix matrix;
     std::string error;
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -3352,7 +3355,7 @@ TEST_F(LibVintfTest, RegexInstanceCompat) {
     std::string error;
 
     std::string xml =
-        "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\" optional=\"false\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <version>1.0</version>\n"
@@ -3373,7 +3376,7 @@ TEST_F(LibVintfTest, RegexInstanceCompat) {
 
     {
         std::string xml =
-            "<manifest version=\"1.0\" type=\"device\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"device\">\n"
             "    <hal format=\"hidl\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <transport>hwbinder</transport>\n"
@@ -3398,7 +3401,7 @@ TEST_F(LibVintfTest, RegexInstanceCompat) {
 
     {
         std::string xml =
-            "<manifest version=\"1.0\" type=\"device\">\n"
+            "<manifest " + kMetaVersionStr + " type=\"device\">\n"
             "    <hal format=\"hidl\">\n"
             "        <name>android.hardware.foo</name>\n"
             "        <transport>hwbinder</transport>\n"
@@ -3476,9 +3479,9 @@ TEST_F(LibVintfTest, KernelInfo) {
 }
 
 TEST_F(LibVintfTest, ManifestAddAllDeviceManifest) {
-    std::string xml1 = "<manifest version=\"1.0\" type=\"device\" />\n";
+    std::string xml1 = "<manifest " + kMetaVersionStr + " type=\"device\" />\n";
     std::string xml2 =
-        "<manifest version=\"1.0\" type=\"device\" target-level=\"3\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"3\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -3511,9 +3514,9 @@ TEST_F(LibVintfTest, ManifestAddAllDeviceManifest) {
 }
 
 TEST_F(LibVintfTest, ManifestAddAllFrameworkManifest) {
-    std::string xml1 = "<manifest version=\"1.0\" type=\"framework\" />\n";
+    std::string xml1 = "<manifest " + kMetaVersionStr + " type=\"framework\" />\n";
     std::string xml2 =
-        "<manifest version=\"1.0\" type=\"framework\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
         "    <hal format=\"hidl\">\n"
         "        <name>android.hardware.foo</name>\n"
         "        <transport>hwbinder</transport>\n"
@@ -3544,8 +3547,8 @@ TEST_F(LibVintfTest, ManifestAddAllFrameworkManifest) {
 }
 
 TEST_F(LibVintfTest, ManifestAddAllConflictLevel) {
-    std::string xml1 = "<manifest version=\"1.0\" type=\"device\" target-level=\"2\" />\n";
-    std::string xml2 = "<manifest version=\"1.0\" type=\"device\" target-level=\"3\" />\n";
+    std::string xml1 = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"2\" />\n";
+    std::string xml2 = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"3\" />\n";
 
     std::string error;
     HalManifest manifest1;
@@ -3559,13 +3562,13 @@ TEST_F(LibVintfTest, ManifestAddAllConflictLevel) {
 
 TEST_F(LibVintfTest, ManifestAddAllConflictSepolicy) {
     std::string xml1 =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <sepolicy>\n"
         "        <version>25.5</version>\n"
         "    </sepolicy>\n"
         "</manifest>\n";
     std::string xml2 =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <sepolicy>\n"
         "        <version>30.0</version>\n"
         "    </sepolicy>\n"
@@ -3583,11 +3586,11 @@ TEST_F(LibVintfTest, ManifestAddAllConflictSepolicy) {
 
 TEST_F(LibVintfTest, ManifestAddAllConflictKernel) {
     std::string xml1 =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <kernel version=\"3.18.0\" />\n"
         "</manifest>\n";
     std::string xml2 =
-        "<manifest version=\"1.0\" type=\"device\">\n"
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
         "    <kernel version=\"3.18.1\" />\n"
         "</manifest>\n";
 
@@ -3599,6 +3602,150 @@ TEST_F(LibVintfTest, ManifestAddAllConflictKernel) {
 
     ASSERT_FALSE(manifest1.addAll(&manifest2, &error));
     EXPECT_IN("Conflicting kernel", error);
+}
+
+TEST_F(LibVintfTest, ManifestMetaVersionCompat) {
+    std::string xml = "<manifest version=\"2.0\" type=\"device\" />";
+    std::string error;
+    HalManifest manifest;
+    EXPECT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+}
+
+TEST_F(LibVintfTest, ManifestMetaVersionIncompat) {
+    std::string xml = "<manifest version=\"10000.0\" type=\"device\" />";
+    std::string error;
+    HalManifest manifest;
+    EXPECT_FALSE(gHalManifestConverter(&manifest, xml, &error))
+        << "Should not parse metaversion 10000.0";
+}
+
+TEST_F(LibVintfTest, ManifestMetaVersionWriteLatest) {
+    std::string xml = "<manifest version=\"1.0\" type=\"device\" />";
+    std::string error;
+    HalManifest manifest;
+    EXPECT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+    EXPECT_IN(kMetaVersionStr, gHalManifestConverter(manifest, SerializeFlags::NO_TAGS));
+}
+
+TEST_F(LibVintfTest, MatrixMetaVersionCompat) {
+    std::string xml = "<compatibility-matrix version=\"2.0\" type=\"framework\" />";
+    std::string error;
+    CompatibilityMatrix matrix;
+    EXPECT_TRUE(gCompatibilityMatrixConverter(&matrix, xml, &error)) << error;
+}
+
+TEST_F(LibVintfTest, MatrixMetaVersionIncompat) {
+    std::string xml = "<compatibility-matrix version=\"10000.0\" type=\"framework\" />";
+    std::string error;
+    CompatibilityMatrix matrix;
+    EXPECT_FALSE(gCompatibilityMatrixConverter(&matrix, xml, &error))
+        << "Should not parse metaversion 10000.0";
+}
+
+TEST_F(LibVintfTest, MatrixMetaVersionWriteLatest) {
+    std::string xml = "<compatibility-matrix version=\"1.0\" type=\"framework\" />";
+    std::string error;
+    CompatibilityMatrix matrix;
+    EXPECT_TRUE(gCompatibilityMatrixConverter(&matrix, xml, &error)) << error;
+    EXPECT_IN(kMetaVersionStr, gCompatibilityMatrixConverter(matrix, SerializeFlags::NO_TAGS));
+}
+
+TEST_F(LibVintfTest, Aidl) {
+    std::string xml =
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
+        "    <hal format=\"aidl\" optional=\"false\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "            <regex-instance>test.*</regex-instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n";
+    std::string error;
+    CompatibilityMatrix matrix;
+    EXPECT_TRUE(gCompatibilityMatrixConverter(&matrix, xml, &error)) << error;
+    EXPECT_EQ(xml, gCompatibilityMatrixConverter(matrix, SerializeFlags::HALS_NO_FQNAME));
+
+    {
+        HalManifest manifest;
+        std::string manifestXml =
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+            "    <hal format=\"aidl\">\n"
+            "        <name>android.system.foo</name>\n"
+            "        <interface>\n"
+            "            <name>IFoo</name>\n"
+            "            <instance>default</instance>\n"
+            "            <instance>test0</instance>\n"
+            "        </interface>\n"
+            "    </hal>\n"
+            "</manifest>\n";
+        EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
+        EXPECT_EQ(manifestXml, gHalManifestConverter(manifest, SerializeFlags::HALS_NO_FQNAME));
+        EXPECT_TRUE(manifest.checkCompatibility(matrix, &error)) << error;
+    }
+
+    {
+        HalManifest manifest;
+        std::string manifestXml =
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+            "    <hal format=\"aidl\">\n"
+            "        <name>android.system.foo</name>\n"
+            "        <fqname>IFoo/default</fqname>\n"
+            "        <fqname>IFoo/test0</fqname>\n"
+            "    </hal>\n"
+            "</manifest>\n";
+        EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
+        EXPECT_EQ(manifestXml, gHalManifestConverter(manifest, SerializeFlags::HALS_ONLY));
+        EXPECT_TRUE(manifest.checkCompatibility(matrix, &error)) << error;
+    }
+
+    {
+        HalManifest manifest;
+        std::string manifestXml =
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+            "    <hal format=\"aidl\">\n"
+            "        <name>android.system.foo</name>\n"
+            "        <interface>\n"
+            "            <name>IFoo</name>\n"
+            "            <instance>incompat_instance</instance>\n"
+            "            <instance>test0</instance>\n"
+            "        </interface>\n"
+            "    </hal>\n"
+            "</manifest>\n";
+        EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
+        EXPECT_EQ(manifestXml, gHalManifestConverter(manifest, SerializeFlags::HALS_NO_FQNAME));
+        EXPECT_FALSE(manifest.checkCompatibility(matrix, &error))
+            << "Should not be compatible because default instance is missing";
+        EXPECT_IN("required: (IFoo/default AND IFoo/test.*)", error);
+        EXPECT_IN("provided: \n"
+                  "        IFoo/incompat_instance\n"
+                  "        IFoo/test0",
+                  error);
+    }
+    {
+        HalManifest manifest;
+        std::string manifestXml =
+            "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+            "    <hal format=\"aidl\">\n"
+            "        <name>android.system.foo</name>\n"
+            "        <interface>\n"
+            "            <name>IFoo</name>\n"
+            "            <instance>default</instance>\n"
+            "            <instance>incompat_instance</instance>\n"
+            "        </interface>\n"
+            "    </hal>\n"
+            "</manifest>\n";
+        EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
+        EXPECT_EQ(manifestXml, gHalManifestConverter(manifest, SerializeFlags::HALS_NO_FQNAME));
+        EXPECT_FALSE(manifest.checkCompatibility(matrix, &error))
+            << "Should not be compatible because test.* instance is missing";
+        EXPECT_IN("required: (IFoo/default AND IFoo/test.*)", error);
+        EXPECT_IN("provided: \n"
+                  "        IFoo/default\n"
+                  "        IFoo/incompat_instance\n",
+                  error);
+    }
 }
 
 struct FrameworkCompatibilityMatrixCombineTest : public LibVintfTest {
@@ -3623,14 +3770,14 @@ struct FrameworkCompatibilityMatrixCombineTest : public LibVintfTest {
 TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictMinlts) {
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[0].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <kernel version=\"3.18.5\" />\n"
         "</compatibility-matrix>\n",
         &error))
         << error;
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[1].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <kernel version=\"3.18.6\" />\n"
         "</compatibility-matrix>\n",
         &error))
@@ -3666,14 +3813,14 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, KernelNoConditions) {
 
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[0].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <kernel version=\"3.18.5\" />\n" +
             conditionedKernel + "</compatibility-matrix>\n",
         &error))
         << error;
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[1].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n" + simpleKernel +
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n" + simpleKernel +
             "</compatibility-matrix>\n",
         &error))
         << error;
@@ -3681,7 +3828,7 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, KernelNoConditions) {
     auto combined = combine(Level{1}, &matrices, &error);
     ASSERT_NE(nullptr, combined);
     EXPECT_EQ("", error);
-    EXPECT_EQ("<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n" +
+    EXPECT_EQ("<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n" +
                   simpleKernel + conditionedKernel + "</compatibility-matrix>\n",
               gCompatibilityMatrixConverter(*combined));
 }
@@ -3690,7 +3837,7 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, KernelNoConditions) {
 TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictSepolicy) {
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[0].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <sepolicy>\n"
         "        <kernel-sepolicy-version>30</kernel-sepolicy-version>\n"
         "    </sepolicy>\n"
@@ -3699,7 +3846,7 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictSepolicy) {
         << error;
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[1].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <sepolicy>\n"
         "        <kernel-sepolicy-version>29</kernel-sepolicy-version>\n"
         "    </sepolicy>\n"
@@ -3716,7 +3863,7 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictSepolicy) {
 TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictAvb) {
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[0].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <avb>\n"
         "        <vbmeta-version>1.1</vbmeta-version>\n"
         "    </avb>\n"
@@ -3725,7 +3872,7 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictAvb) {
         << error;
     ASSERT_TRUE(gCompatibilityMatrixConverter(
         &matrices[1].object,
-        "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
         "    <avb>\n"
         "        <vbmeta-version>1.0</vbmeta-version>\n"
         "    </avb>\n"
@@ -3756,7 +3903,7 @@ struct DeviceCompatibilityMatrixCombineTest : public LibVintfTest {
 };
 
 TEST_F(DeviceCompatibilityMatrixCombineTest, Success) {
-    std::string head{"<compatibility-matrix version=\"1.0\" type=\"device\">\n"};
+    std::string head{"<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"};
     std::string tail{"</compatibility-matrix>\n"};
     std::string halFoo{
         "    <hal format=\"hidl\" optional=\"false\">\n"
@@ -3791,13 +3938,13 @@ TEST_F(DeviceCompatibilityMatrixCombineTest, Success) {
 
 TEST_F(DeviceCompatibilityMatrixCombineTest, ConflictVendorNdk) {
     std::string vendorNdkP{
-        "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
         "    <vendor-ndk>\n"
         "        <version>P</version>\n"
         "    </vendor-ndk>\n"
         "</compatibility-matrix>\n"};
     std::string vendorNdkQ{
-        "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
         "    <vendor-ndk>\n"
         "        <version>Q</version>\n"
         "    </vendor-ndk>\n"
@@ -3809,6 +3956,8 @@ TEST_F(DeviceCompatibilityMatrixCombineTest, ConflictVendorNdk) {
     ASSERT_EQ(nullptr, combined) << gCompatibilityMatrixConverter(*combined);
     EXPECT_IN("<vendor-ndk> is already defined", error);
 }
+
+// clang-format on
 
 } // namespace vintf
 } // namespace android

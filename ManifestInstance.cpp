@@ -86,15 +86,24 @@ bool ManifestInstance::operator<(const ManifestInstance& other) const {
     return mHalFormat < other.mHalFormat;
 }
 
-FqInstance ManifestInstance::getFqInstanceNoPackage() const {
+std::string ManifestInstance::getSimpleFqInstance() const {
     FqInstance e;
-    bool success = e.setTo(version().majorVer, version().minorVer, interface(), instance());
+    bool success = false;
+    switch (format()) {
+        case HalFormat::AIDL: {
+            // Hide fake version when printing human-readable message or to manifest XML.
+            success = e.setTo(interface(), instance());
+        } break;
+        case HalFormat::HIDL:
+            [[fallthrough]];
+        case HalFormat::NATIVE: {
+            success = e.setTo(version().majorVer, version().minorVer, interface(), instance());
+        } break;
+    }
 #ifndef LIBVINTF_TARGET
-    CHECK(success) << "Cannot remove package from '" << mFqInstance.string() << "'";
-#else
-    (void)success;
+    CHECK(success) << "Cannot get simple fqinstnance from '" << mFqInstance.string() << "'";
 #endif
-    return e;
+    return success ? e.string() : "";
 }
 
 }  // namespace vintf

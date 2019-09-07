@@ -175,8 +175,6 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
 
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;
-    // version attribute. Default is 1.0 for manifests created programatically.
-    Version mMetaVersion{1, 0};
 
     // entries for device hal manifest only
     struct {

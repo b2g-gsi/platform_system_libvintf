@@ -26,10 +26,11 @@
 
 #include <android-base/strings.h>
 
+#include "CompatibilityMatrix.h"
+#include "constants.h"
 #include "parse_string.h"
 #include "parse_xml.h"
 #include "utils.h"
-#include "CompatibilityMatrix.h"
 
 namespace android {
 namespace vintf {
@@ -186,12 +187,12 @@ std::vector<std::string> HalManifest::checkIncompatibleHals(const CompatibilityM
         }
 
         std::set<FqInstance> manifestInstances;
-        std::set<FqInstance> manifestInstancesNoPackage;
+        std::set<std::string> simpleManifestInstances;
         std::set<Version> versions;
         for (const ManifestHal* manifestHal : getHals(matrixHal.name)) {
             manifestHal->forEachInstance([&](const auto& manifestInstance) {
                 manifestInstances.insert(manifestInstance.getFqInstance());
-                manifestInstancesNoPackage.insert(manifestInstance.getFqInstanceNoPackage());
+                simpleManifestInstances.insert(manifestInstance.getSimpleFqInstance());
                 return true;
             });
             manifestHal->appendAllVersions(&versions);
@@ -205,7 +206,7 @@ std::vector<std::string> HalManifest::checkIncompatibleHals(const CompatibilityM
             if (manifestInstances.empty()) {
                 multilineIndent(oss, 8, versions);
             } else {
-                multilineIndent(oss, 8, manifestInstancesNoPackage);
+                multilineIndent(oss, 8, simpleManifestInstances);
             }
 
             ret.insert(ret.end(), oss.str());
@@ -384,7 +385,7 @@ Level HalManifest::level() const {
 }
 
 Version HalManifest::getMetaVersion() const {
-    return mMetaVersion;
+    return kMetaVersion;
 }
 
 const Version &HalManifest::sepolicyVersion() const {
@@ -482,15 +483,6 @@ const std::optional<KernelInfo>& HalManifest::kernel() const {
 }
 
 bool HalManifest::addAll(HalManifest* other, std::string* error) {
-    if (other->mMetaVersion.majorVer != mMetaVersion.majorVer) {
-        if (error) {
-            *error = "Cannot merge manifest version " + to_string(mMetaVersion) + " and " +
-                     to_string(other->mMetaVersion);
-        }
-        return false;
-    }
-    mMetaVersion.minorVer = std::max(mMetaVersion.minorVer, other->mMetaVersion.minorVer);
-
     if (type() != other->type()) {
         if (error) {
             *error = "Cannot add a " + to_string(other->type()) + " manifest to a " +
