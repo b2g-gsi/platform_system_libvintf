@@ -23,6 +23,8 @@
 
 #include <utility>
 
+#include "parse_string.h"
+
 namespace android {
 namespace vintf {
 
@@ -104,6 +106,19 @@ std::string ManifestInstance::getSimpleFqInstance() const {
     CHECK(success) << "Cannot get simple fqinstnance from '" << mFqInstance.string() << "'";
 #endif
     return success ? e.string() : "";
+}
+
+std::string ManifestInstance::description() const {
+    switch (format()) {
+        case HalFormat::AIDL: {
+            return toAidlFqnameString(package(), interface(), instance());
+        } break;
+        case HalFormat::HIDL:
+            [[fallthrough]];
+        case HalFormat::NATIVE: {
+            return getFqInstance().string();
+        } break;
+    }
 }
 
 }  // namespace vintf

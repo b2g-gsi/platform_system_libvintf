@@ -56,6 +56,10 @@ class ManifestInstance {
     // return [@version::]interface/instance printing and writing XML.
     std::string getSimpleFqInstance() const;
 
+    // For AIDL, return package.interface/instance.
+    // For others, return package@version::interface/instance.
+    std::string description() const;
+
    private:
     FqInstance mFqInstance;
     TransportArch mTransportArch;

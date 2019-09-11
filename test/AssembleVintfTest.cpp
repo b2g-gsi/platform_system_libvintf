@@ -546,6 +546,37 @@ TEST_F(AssembleVintfTest, OutputFileManifestTest) {
     EXPECT_IN(kFile, getOutput());
 }
 
+TEST_F(AssembleVintfTest, AidlAndHidlNames) {
+    addInput("manifest1.xml",
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"aidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <fqname>IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n");
+    addInput("manifest2.xml",
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"hidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <transport>hwbinder</transport>\n"
+        "        <fqname>@1.0::IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n");
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN(
+        "    <hal format=\"aidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <fqname>IFoo/default</fqname>\n"
+        "    </hal>\n",
+        getOutput());
+    EXPECT_IN(
+        "    <hal format=\"hidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <transport>hwbinder</transport>\n"
+        "        <fqname>@1.0::IFoo/default</fqname>\n"
+        "    </hal>\n",
+        getOutput());
+}
 // clang-format on
 
 }  // namespace vintf

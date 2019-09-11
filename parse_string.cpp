@@ -537,5 +537,10 @@ bool parse(const std::string& s, FqInstance* fqInstance) {
     return fqInstance->setTo(s);
 }
 
+std::string toAidlFqnameString(const std::string& package, const std::string& interface,
+                               const std::string& instance) {
+    return package + "." + interface + "/" + instance;
+}
+
 } // namespace vintf
 } // namespace android

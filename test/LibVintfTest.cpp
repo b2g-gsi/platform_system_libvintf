@@ -3748,6 +3748,91 @@ TEST_F(LibVintfTest, Aidl) {
     }
 }
 
+TEST_F(LibVintfTest, AidlAndHidlNamesMatrix) {
+    std::string xml =
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
+        "    <hal format=\"aidl\" optional=\"true\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <version>1.0</version>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n";
+    std::string error;
+    CompatibilityMatrix matrix;
+    EXPECT_TRUE(gCompatibilityMatrixConverter(&matrix, xml, &error)) << error;
+    EXPECT_EQ(xml, gCompatibilityMatrixConverter(matrix, SerializeFlags::HALS_ONLY));
+}
+
+TEST_F(LibVintfTest, AidlAndHidlNamesManifest) {
+    std::string xml =
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"aidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <fqname>IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "    <hal format=\"hidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <transport>hwbinder</transport>\n"
+        "        <fqname>@1.0::IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n";
+    std::string error;
+    HalManifest manifest;
+    EXPECT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+    EXPECT_EQ(xml, gHalManifestConverter(manifest, SerializeFlags::HALS_ONLY));
+}
+
+TEST_F(LibVintfTest, AidlAndHidlCheckUnused) {
+    std::string manifestXml =
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"aidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <fqname>IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "    <hal format=\"hidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <transport>hwbinder</transport>\n"
+        "        <fqname>@1.0::IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n";
+    std::string matrixXml =
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
+        "    <hal format=\"aidl\" optional=\"true\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <version>1.0</version>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n";
+    std::string error;
+    HalManifest manifest;
+    CompatibilityMatrix matrix;
+
+    EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
+    EXPECT_TRUE(gCompatibilityMatrixConverter(&matrix, matrixXml, &error)) << error;
+    auto unused = checkUnusedHals(manifest, matrix);
+    EXPECT_TRUE(unused.empty()) << android::base::Join(unused, "\n");
+}
+
 struct FrameworkCompatibilityMatrixCombineTest : public LibVintfTest {
     virtual void SetUp() override {
         matrices = {
@@ -3885,6 +3970,71 @@ TEST_F(FrameworkCompatibilityMatrixCombineTest, ConflictAvb) {
     EXPECT_IN("<avb><vbmeta-version> is already defined", error);
 }
 
+TEST_F(FrameworkCompatibilityMatrixCombineTest, AidlAndHidlNames) {
+    std::string head1{"<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"};
+    std::string head2{"<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"};
+    std::string tail{"</compatibility-matrix>\n"};
+    std::string aidl =
+        "    <hal format=\"aidl\" optional=\"false\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n";
+    std::string hidl =
+        "    <hal format=\"hidl\" optional=\"false\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <version>1.0</version>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n";
+    std::string aidlOptional = std::string(aidl).replace(hidl.find("false"), 5, "true");
+    std::string hidlOptional = std::string(hidl).replace(hidl.find("false"), 5, "true");
+    std::string error;
+    {
+        ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[0].object, head1 + aidl + tail, &error))
+            << error;
+        ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[1].object, head1 + hidl + tail, &error))
+            << error;
+
+        auto combined = combine(Level{1}, &matrices, &error);
+        ASSERT_NE(nullptr, combined) << error;
+
+        auto combinedXml = gCompatibilityMatrixConverter(*combined);
+        EXPECT_IN(aidl, combinedXml);
+        EXPECT_IN(hidl, combinedXml);
+    }
+    {
+        ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[0].object, head1 + aidl + tail, &error))
+            << error;
+        ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[1].object, head2 + hidl + tail, &error))
+            << error;
+
+        auto combined = combine(Level{1}, &matrices, &error);
+        ASSERT_NE(nullptr, combined) << error;
+
+        auto combinedXml = gCompatibilityMatrixConverter(*combined);
+        EXPECT_IN(aidl, combinedXml);
+        EXPECT_IN(hidlOptional, combinedXml);
+    }
+    {
+        ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[0].object, head2 + aidl + tail, &error))
+            << error;
+        ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[1].object, head1 + hidl + tail, &error))
+            << error;
+
+        auto combined = combine(Level{1}, &matrices, &error);
+        ASSERT_NE(nullptr, combined) << error;
+
+        auto combinedXml = gCompatibilityMatrixConverter(*combined);
+        EXPECT_IN(aidlOptional, combinedXml);
+        EXPECT_IN(hidl, combinedXml);
+    }
+}
+
 struct DeviceCompatibilityMatrixCombineTest : public LibVintfTest {
     virtual void SetUp() override {
         matrices = {
@@ -3955,6 +4105,39 @@ TEST_F(DeviceCompatibilityMatrixCombineTest, ConflictVendorNdk) {
     auto combined = combine(&matrices, &error);
     ASSERT_EQ(nullptr, combined) << gCompatibilityMatrixConverter(*combined);
     EXPECT_IN("<vendor-ndk> is already defined", error);
+}
+
+TEST_F(DeviceCompatibilityMatrixCombineTest, AidlAndHidlNames) {
+    std::string head{"<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"};
+    std::string tail{"</compatibility-matrix>\n"};
+    std::string aidl =
+        "    <hal format=\"aidl\" optional=\"true\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n";
+    std::string hidl =
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <version>1.0</version>\n"
+        "        <interface>\n"
+        "            <name>IFoo</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n";
+    ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[0].object, head + aidl + tail, &error))
+        << error;
+    ASSERT_TRUE(gCompatibilityMatrixConverter(&matrices[1].object, head + hidl + tail, &error))
+        << error;
+
+    auto combined = combine(&matrices, &error);
+    ASSERT_NE(nullptr, combined) << error;
+
+    auto combinedXml = gCompatibilityMatrixConverter(*combined);
+    EXPECT_IN(aidl, combinedXml);
+    EXPECT_IN(hidl, combinedXml);
 }
 
 // clang-format on

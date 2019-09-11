@@ -186,6 +186,11 @@ bool CompatibilityMatrix::addAllHalsAsOptional(CompatibilityMatrix* other, std::
                                      const std::string& interface,
                                      const std::string& instanceOrPattern, bool isRegex) {
             for (auto* existingHal : existingHals) {
+                // Ignore HALs with different format.
+                if (halToAdd.format != existingHal->format) {
+                    continue;
+                }
+
                 MatrixHal* splitInstance =
                     this->splitInstance(existingHal, interface, instanceOrPattern, isRegex);
                 if (splitInstance != nullptr) {
