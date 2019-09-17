@@ -27,6 +27,7 @@
 #include <android-base/strings.h>
 
 #include "CompatibilityMatrix.h"
+#include "constants-private.h"
 #include "constants.h"
 #include "parse_string.h"
 #include "parse_xml.h"
@@ -126,34 +127,45 @@ std::set<std::string> HalManifest::getHalNames() const {
 std::set<std::string> HalManifest::getHalNamesAndVersions() const {
     std::set<std::string> names{};
     forEachInstance([&names](const ManifestInstance& e) {
-        names.insert(toFQNameString(e.package(), e.version()));
+        switch (e.format()) {
+            case HalFormat::HIDL:
+                [[fallthrough]];
+            case HalFormat::NATIVE:
+                names.insert(toFQNameString(e.package(), e.version()));
+                break;
+            case HalFormat::AIDL:
+                names.insert(e.package());
+                break;
+        }
         return true;
     });
     return names;
 }
 
-Transport HalManifest::getTransport(const std::string &package, const Version &v,
-            const std::string &interfaceName, const std::string &instanceName) const {
+Transport HalManifest::getHidlTransport(const std::string& package, const Version& v,
+                                        const std::string& interfaceName,
+                                        const std::string& instanceName) const {
     Transport transport{Transport::EMPTY};
-    forEachInstanceOfInterface(package, v, interfaceName, [&](const auto& e) {
+    forEachInstanceOfInterface(HalFormat::HIDL, package, v, interfaceName, [&](const auto& e) {
         if (e.instance() == instanceName) {
             transport = e.transport();
         }
         return transport == Transport::EMPTY;  // if not found, continue
     });
     if (transport == Transport::EMPTY) {
-        LOG(DEBUG) << "HalManifest::getTransport(" << mType << "): Cannot find "
+        LOG(DEBUG) << "HalManifest::getHidlTransport(" << mType << "): Cannot find "
                    << toFQNameString(package, v, interfaceName, instanceName);
     }
     return transport;
 }
 
 bool HalManifest::forEachInstanceOfVersion(
-    const std::string& package, const Version& expectVersion,
+    HalFormat format, const std::string& package, const Version& expectVersion,
     const std::function<bool(const ManifestInstance&)>& func) const {
     for (const ManifestHal* hal : getHals(package)) {
         bool cont = hal->forEachInstance([&](const ManifestInstance& manifestInstance) {
-            if (manifestInstance.version().minorAtLeast(expectVersion)) {
+            if (manifestInstance.format() == format &&
+                manifestInstance.version().minorAtLeast(expectVersion)) {
                 return func(manifestInstance);
             }
             return true;
@@ -219,8 +231,9 @@ std::set<std::string> HalManifest::checkUnusedHals(const CompatibilityMatrix& ma
     std::set<std::string> ret;
 
     forEachInstance([&ret, &mat](const auto& manifestInstance) {
-        if (!mat.matchInstance(manifestInstance.package(), manifestInstance.version(),
-                               manifestInstance.interface(), manifestInstance.instance())) {
+        if (!mat.matchInstance(manifestInstance.format(), manifestInstance.package(),
+                               manifestInstance.version(), manifestInstance.interface(),
+                               manifestInstance.instance())) {
             ret.insert(manifestInstance.description());
         }
         return true;
@@ -432,26 +445,44 @@ bool operator==(const HalManifest &lft, const HalManifest &rgt) {
 }
 
 // Alternative to forEachInstance if you just need a set of instance names instead.
-std::set<std::string> HalManifest::getInstances(const std::string& halName, const Version& version,
+std::set<std::string> HalManifest::getInstances(HalFormat format, const std::string& package,
+                                                const Version& version,
                                                 const std::string& interfaceName) const {
     std::set<std::string> ret;
-    (void)forEachInstanceOfInterface(halName, version, interfaceName, [&ret](const auto& e) {
-        ret.insert(e.instance());
-        return true;
-    });
+    (void)forEachInstanceOfInterface(format, package, version, interfaceName,
+                                     [&ret](const auto& e) {
+                                         ret.insert(e.instance());
+                                         return true;
+                                     });
     return ret;
 }
 
 // Return whether instance is in getInstances(...).
-bool HalManifest::hasInstance(const std::string& halName, const Version& version,
+bool HalManifest::hasInstance(HalFormat format, const std::string& package, const Version& version,
                               const std::string& interfaceName, const std::string& instance) const {
     bool found = false;
-    (void)forEachInstanceOfInterface(halName, version, interfaceName,
+    (void)forEachInstanceOfInterface(format, package, version, interfaceName,
                                      [&found, &instance](const auto& e) {
                                          found |= (instance == e.instance());
                                          return !found;  // if not found, continue
                                      });
     return found;
+}
+std::set<std::string> HalManifest::getHidlInstances(const std::string& package,
+                                                    const Version& version,
+                                                    const std::string& interfaceName) const {
+    return getInstances(HalFormat::HIDL, package, version, interfaceName);
+}
+
+bool HalManifest::hasHidlInstance(const std::string& package, const Version& version,
+                                  const std::string& interfaceName,
+                                  const std::string& instance) const {
+    return hasInstance(HalFormat::HIDL, package, version, interfaceName, instance);
+}
+
+bool HalManifest::hasAidlInstance(const std::string& package, const std::string& interface,
+                                  const std::string& instance) const {
+    return hasInstance(HalFormat::AIDL, package, details::kFakeAidlVersion, interface, instance);
 }
 
 bool HalManifest::insertInstance(const FqInstance& fqInstance, Transport transport, Arch arch,

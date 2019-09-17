@@ -29,6 +29,7 @@
 #include <vintf/VintfObject.h>
 #include <vintf/parse_string.h>
 #include <vintf/parse_xml.h>
+#include "constants-private.h"
 #include "test_constants.h"
 
 namespace android {
@@ -236,7 +237,7 @@ TEST_F(LibVintfTest, Stringify) {
 
 TEST_F(LibVintfTest, GetTransport) {
     HalManifest vm = testDeviceManifest();
-    EXPECT_EQ(Transport::HWBINDER, vm.getTransport("android.hardware.camera",
+    EXPECT_EQ(Transport::HWBINDER, vm.getHidlTransport("android.hardware.camera",
             {2, 0}, "ICamera", "default"));
 }
 
@@ -431,36 +432,36 @@ TEST_F(LibVintfTest, HalManifestGetTransport) {
                                       "    </hal>"
                                       "</manifest>"));
     EXPECT_EQ(Transport::PASSTHROUGH,
-              vm.getTransport("android.hidl.manager", {2, 1}, "IServiceManager", "default"));
+              vm.getHidlTransport("android.hidl.manager", {2, 1}, "IServiceManager", "default"));
     EXPECT_EQ(Transport::PASSTHROUGH,
-              vm.getTransport("android.hidl.manager", {2, 0}, "IServiceManager", "default"));
+              vm.getHidlTransport("android.hidl.manager", {2, 0}, "IServiceManager", "default"));
     EXPECT_EQ(Transport::EMPTY,
-              vm.getTransport("android.hidl.manager", {2, 2}, "IServiceManager", "default"));
+              vm.getHidlTransport("android.hidl.manager", {2, 2}, "IServiceManager", "default"));
     EXPECT_EQ(Transport::HWBINDER,
-              vm.getTransport("android.hidl.manager", {1, 0}, "IServiceManager", "default"));
+              vm.getHidlTransport("android.hidl.manager", {1, 0}, "IServiceManager", "default"));
 }
 
 TEST_F(LibVintfTest, HalManifestInstances) {
     HalManifest vm = testDeviceManifest();
-    EXPECT_EQ(vm.getInstances("android.hardware.camera", {2, 0}, "ICamera"),
+    EXPECT_EQ(vm.getHidlInstances("android.hardware.camera", {2, 0}, "ICamera"),
               std::set<std::string>({"default", "legacy/0"}));
-    EXPECT_EQ(vm.getInstances("android.hardware.camera", {2, 0}, "IBetterCamera"),
+    EXPECT_EQ(vm.getHidlInstances("android.hardware.camera", {2, 0}, "IBetterCamera"),
               std::set<std::string>({"camera"}));
-    EXPECT_EQ(vm.getInstances("android.hardware.camera", {2, 0}, "INotExist"),
+    EXPECT_EQ(vm.getHidlInstances("android.hardware.camera", {2, 0}, "INotExist"),
               std::set<std::string>({}));
-    EXPECT_EQ(vm.getInstances("android.hardware.nfc", {1, 0}, "INfc"),
+    EXPECT_EQ(vm.getHidlInstances("android.hardware.nfc", {1, 0}, "INfc"),
               std::set<std::string>({"default"}));
 
-    EXPECT_TRUE(vm.hasInstance("android.hardware.camera", {2, 0}, "ICamera", "default"));
-    EXPECT_TRUE(vm.hasInstance("android.hardware.camera", {2, 0}, "ICamera", "legacy/0"));
-    EXPECT_TRUE(vm.hasInstance("android.hardware.camera", {2, 0}, "IBetterCamera", "camera"));
-    EXPECT_TRUE(vm.hasInstance("android.hardware.nfc", {1, 0}, "INfc", "default"));
+    EXPECT_TRUE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "ICamera", "default"));
+    EXPECT_TRUE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "ICamera", "legacy/0"));
+    EXPECT_TRUE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "IBetterCamera", "camera"));
+    EXPECT_TRUE(vm.hasHidlInstance("android.hardware.nfc", {1, 0}, "INfc", "default"));
 
-    EXPECT_FALSE(vm.hasInstance("android.hardware.camera", {2, 0}, "INotExist", "default"));
-    EXPECT_FALSE(vm.hasInstance("android.hardware.camera", {2, 0}, "ICamera", "notexist"));
-    EXPECT_FALSE(vm.hasInstance("android.hardware.camera", {2, 0}, "IBetterCamera", "default"));
-    EXPECT_FALSE(vm.hasInstance("android.hardware.camera", {2, 0}, "INotExist", "notexist"));
-    EXPECT_FALSE(vm.hasInstance("android.hardware.nfc", {1, 0}, "INfc", "notexist"));
+    EXPECT_FALSE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "INotExist", "default"));
+    EXPECT_FALSE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "ICamera", "notexist"));
+    EXPECT_FALSE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "IBetterCamera", "default"));
+    EXPECT_FALSE(vm.hasHidlInstance("android.hardware.camera", {2, 0}, "INotExist", "notexist"));
+    EXPECT_FALSE(vm.hasHidlInstance("android.hardware.nfc", {1, 0}, "INfc", "notexist"));
 }
 
 TEST_F(LibVintfTest, VersionConverter) {
@@ -3185,7 +3186,7 @@ TEST_F(LibVintfTest, FqNameValid) {
         EXPECT_TRUE(manifest.checkCompatibility(cm, &error)) << error;
 
         EXPECT_EQ(Transport::HWBINDER,
-                  manifest.getTransport("android.hardware.foo", {1, 1}, "IFoo", "custom"));
+                  manifest.getHidlTransport("android.hardware.foo", {1, 1}, "IFoo", "custom"));
     }
 
     {
@@ -3683,6 +3684,11 @@ TEST_F(LibVintfTest, Aidl) {
         EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
         EXPECT_EQ(manifestXml, gHalManifestConverter(manifest, SerializeFlags::HALS_NO_FQNAME));
         EXPECT_TRUE(manifest.checkCompatibility(matrix, &error)) << error;
+        EXPECT_TRUE(manifest.hasAidlInstance("android.system.foo", "IFoo", "default"));
+        EXPECT_TRUE(manifest.hasAidlInstance("android.system.foo", "IFoo", "test0"));
+        EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IFoo", "does_not_exist"));
+        EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IDoesNotExist", "default"));
+        EXPECT_FALSE(manifest.hasAidlInstance("android.system.does_not_exist", "IFoo", "default"));
     }
 
     {
@@ -3698,6 +3704,11 @@ TEST_F(LibVintfTest, Aidl) {
         EXPECT_TRUE(gHalManifestConverter(&manifest, manifestXml, &error)) << error;
         EXPECT_EQ(manifestXml, gHalManifestConverter(manifest, SerializeFlags::HALS_ONLY));
         EXPECT_TRUE(manifest.checkCompatibility(matrix, &error)) << error;
+        EXPECT_TRUE(manifest.hasAidlInstance("android.system.foo", "IFoo", "default"));
+        EXPECT_TRUE(manifest.hasAidlInstance("android.system.foo", "IFoo", "test0"));
+        EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IFoo", "does_not_exist"));
+        EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IDoesNotExist", "default"));
+        EXPECT_FALSE(manifest.hasAidlInstance("android.system.does_not_exist", "IFoo", "default"));
     }
 
     {
@@ -3831,6 +3842,58 @@ TEST_F(LibVintfTest, AidlAndHidlCheckUnused) {
     EXPECT_TRUE(gCompatibilityMatrixConverter(&matrix, matrixXml, &error)) << error;
     auto unused = checkUnusedHals(manifest, matrix);
     EXPECT_TRUE(unused.empty()) << android::base::Join(unused, "\n");
+}
+
+TEST_F(LibVintfTest, GetTransportHidlHalWithFakeAidlVersion) {
+    std::string xml =
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"hidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <transport>hwbinder</transport>\n"
+        "        <fqname>@" + to_string(details::kFakeAidlVersion) + "::IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n";
+    std::string error;
+    HalManifest manifest;
+    EXPECT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+    EXPECT_EQ(Transport::HWBINDER,
+              manifest.getHidlTransport("android.system.foo", details::kFakeAidlVersion, "IFoo",
+                                        "default"));
+}
+
+TEST_F(LibVintfTest, GetTransportAidlHalWithDummyTransport) {
+    // Check that even if <transport> is specified for AIDL, it is ignored and getHidlTransport
+    // will return EMPTY.
+    std::string xml =
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"aidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <transport>hwbinder</transport>\n"
+        "        <fqname>IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n";
+    std::string error;
+    HalManifest manifest;
+    EXPECT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+    EXPECT_EQ(Transport::EMPTY,
+              manifest.getHidlTransport("android.system.foo", details::kFakeAidlVersion, "IFoo",
+                                        "default"));
+}
+
+TEST_F(LibVintfTest, AidlGetHalNamesAndVersions) {
+    HalManifest manifest;
+    std::string xml =
+        "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <hal format=\"aidl\">\n"
+        "        <name>android.system.foo</name>\n"
+        "        <fqname>IFoo/default</fqname>\n"
+        "    </hal>\n"
+        "</manifest>\n";
+    std::string error;
+    EXPECT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+    auto names = manifest.getHalNamesAndVersions();
+    ASSERT_EQ(1u, names.size());
+    EXPECT_EQ("android.system.foo", *names.begin());
 }
 
 struct FrameworkCompatibilityMatrixCombineTest : public LibVintfTest {

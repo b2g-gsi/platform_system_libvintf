@@ -539,7 +539,12 @@ bool parse(const std::string& s, FqInstance* fqInstance) {
 
 std::string toAidlFqnameString(const std::string& package, const std::string& interface,
                                const std::string& instance) {
-    return package + "." + interface + "/" + instance;
+    std::stringstream ss;
+    ss << package << "." << interface;
+    if (!instance.empty()) {
+        ss << "/" << instance;
+    }
+    return ss.str();
 }
 
 } // namespace vintf

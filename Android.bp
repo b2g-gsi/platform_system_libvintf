@@ -84,6 +84,15 @@ cc_library {
     }
 }
 
+cc_library_headers {
+    name: "libvintf_local_headers",
+    host_supported: true,
+    export_include_dirs: ["."],
+    visibility: [
+        "//system/libvintf:__subpackages__",
+    ],
+}
+
 cc_binary {
     name: "vintf",
     defaults: ["libvintf-defaults"],

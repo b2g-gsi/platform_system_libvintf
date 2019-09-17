@@ -790,7 +790,7 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
     FqInstance expectInstance;
     EXPECT_TRUE(expectInstance.setTo("android.hardware.foo@1.0::IFoo/default"));
     bool found = false;
-    fcm->forEachInstance([&found, &expectInstance](const auto& matrixInstance) {
+    fcm->forEachHidlInstance([&found, &expectInstance](const auto& matrixInstance) {
         found |= matrixInstance.isSatisfiedBy(expectInstance);
         return !found;  // continue if not found
     });
@@ -852,23 +852,23 @@ const std::string odmManifest =
     "</manifest>\n";
 
 bool containsVendorManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getInstances("android.hardware.foo", {1, 0}, "IVendor").empty();
+    return !p->getHidlInstances("android.hardware.foo", {1, 0}, "IVendor").empty();
 }
 
 bool containsVendorEtcManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getInstances("android.hardware.foo", {2, 0}, "IVendorEtc").empty();
+    return !p->getHidlInstances("android.hardware.foo", {2, 0}, "IVendorEtc").empty();
 }
 
 bool vendorEtcManifestOverridden(const std::shared_ptr<const HalManifest>& p) {
-    return p->getInstances("android.hardware.foo", {1, 0}, "IVendorEtc").empty();
+    return p->getHidlInstances("android.hardware.foo", {1, 0}, "IVendorEtc").empty();
 }
 
 bool containsOdmManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getInstances("android.hardware.foo", {1, 1}, "IOdm").empty();
+    return !p->getHidlInstances("android.hardware.foo", {1, 1}, "IOdm").empty();
 }
 
 bool containsOdmProductManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getInstances("android.hardware.foo", {1, 1}, "IOdmProduct").empty();
+    return !p->getHidlInstances("android.hardware.foo", {1, 1}, "IOdmProduct").empty();
 }
 
 class DeviceManifestTest : public VintfObjectTestBase {
@@ -1541,7 +1541,7 @@ class FrameworkManifestTest : public VintfObjectTestBase,
     void expectContainsInterface(const std::string& interface, bool contains = true) {
         auto manifest = vintfObject->getFrameworkHalManifest();
         ASSERT_NE(nullptr, manifest);
-        EXPECT_NE(manifest->getInstances("android.hardware.foo", {1, 0}, interface).empty(),
+        EXPECT_NE(manifest->getHidlInstances("android.hardware.foo", {1, 0}, interface).empty(),
                   contains)
             << interface << " is missing.";
     }
