@@ -107,7 +107,7 @@ cc_test {
         "libhidl-gen-utils",
         "libfs_mgr",
         "liblp",
-        "libcrypto",
+        "libcrypto_static",
         "libcrypto_utils",
         "libext4_utils",
         "libcutils",
