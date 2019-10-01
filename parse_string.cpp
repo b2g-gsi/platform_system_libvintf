@@ -91,13 +91,13 @@ bool parseEnum(const std::string &s, E *e, const Array &strings) {
         return os << g##ENUM##Strings.at(static_cast<size_t>(hf)); \
     }                                                              \
 
-DEFINE_PARSE_STREAMIN_FOR_ENUM(HalFormat);
-DEFINE_PARSE_STREAMIN_FOR_ENUM(Transport);
-DEFINE_PARSE_STREAMIN_FOR_ENUM(Arch);
-DEFINE_PARSE_STREAMIN_FOR_ENUM(KernelConfigType);
-DEFINE_PARSE_STREAMIN_FOR_ENUM(Tristate);
-DEFINE_PARSE_STREAMIN_FOR_ENUM(SchemaType);
-DEFINE_PARSE_STREAMIN_FOR_ENUM(XmlSchemaFormat);
+DEFINE_PARSE_STREAMIN_FOR_ENUM(HalFormat)
+DEFINE_PARSE_STREAMIN_FOR_ENUM(Transport)
+DEFINE_PARSE_STREAMIN_FOR_ENUM(Arch)
+DEFINE_PARSE_STREAMIN_FOR_ENUM(KernelConfigType)
+DEFINE_PARSE_STREAMIN_FOR_ENUM(Tristate)
+DEFINE_PARSE_STREAMIN_FOR_ENUM(SchemaType)
+DEFINE_PARSE_STREAMIN_FOR_ENUM(XmlSchemaFormat)
 
 std::ostream &operator<<(std::ostream &os, const KernelConfigTypedValue &kctv) {
     switch (kctv.mType) {
