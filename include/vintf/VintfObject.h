@@ -61,10 +61,10 @@ class VintfObjectCompatibleTest;
  * An overall diagram of the public API:
  * VintfObject
  *   + GetDeviceHalManfiest
- *   |   + getTransport
+ *   |   + getHidlTransport
  *   |   + checkCompatibility
  *   + GetFrameworkHalManifest
- *   |   + getTransport
+ *   |   + getHidlTransport
  *   |   + checkCompatibility
  *   + GetRuntimeInfo
  *       + checkCompatibility

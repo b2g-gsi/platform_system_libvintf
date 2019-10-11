@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_VINTF_CONSTANTS_H
-#define ANDROID_VINTF_CONSTANTS_H
-
-#include "Version.h"
+#include <vintf/Version.h>
+#include <vintf/VersionRange.h>
 
 namespace android {
 namespace vintf {
+namespace details {
 
-/* libvintf meta-version */
-constexpr Version kMetaVersion{2, 0};
+// All <version> tags in <hal format="aidl"> tags are ignored, and an implicit version
+// is inserted so that compatibility checks for different HAL formats can be unified.
+// This is an implementation detail of libvintf and won't be written to actual XML files.
+// 0.0 is not used because FQName / FqInstance consider it an invalid value.
+static constexpr VersionRange kFakeAidlVersionRange{SIZE_MAX, SIZE_MAX};
+static constexpr Version kFakeAidlVersion = kFakeAidlVersionRange.minVer();
 
+}  // namespace details
 }  // namespace vintf
 }  // namespace android
-
-#endif  // ANDROID_VINTF_CONSTANTS_H

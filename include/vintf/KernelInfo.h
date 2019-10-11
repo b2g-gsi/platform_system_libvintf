@@ -28,6 +28,7 @@ namespace vintf {
 
 namespace details {
 class MockRuntimeInfo;
+struct StaticRuntimeInfo;
 }  // namespace details
 
 // KernelInfo includes kernel-specific information on a device.
@@ -54,6 +55,7 @@ class KernelInfo {
    private:
     friend class AssembleVintfImpl;
     friend class details::MockRuntimeInfo;
+    friend struct details::StaticRuntimeInfo;
     friend struct KernelInfoConverter;
     friend struct LibVintfTest;
     friend struct RuntimeInfoFetcher;

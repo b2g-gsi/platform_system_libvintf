@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_VINTF_CONSTANTS_H
-#define ANDROID_VINTF_CONSTANTS_H
+#pragma once
 
-#include "Version.h"
+#include <vintf/constants.h>
+#include <vintf/parse_string.h>
 
 namespace android {
 namespace vintf {
 
-/* libvintf meta-version */
-constexpr Version kMetaVersion{2, 0};
+const static std::string kMetaVersionStr{"version=\"" + to_string(kMetaVersion) + "\""};
 
 }  // namespace vintf
 }  // namespace android
-
-#endif  // ANDROID_VINTF_CONSTANTS_H
