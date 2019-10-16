@@ -362,8 +362,8 @@ CompatibilityMatrix HalManifest::generateCompatibleMatrix() const {
         matrix.add(MatrixHal{
             .format = e.format(),
             .name = e.package(),
-            .optional = true,
             .versionRanges = {VersionRange{e.version().majorVer, e.version().minorVer}},
+            .optional = true,
             .interfaces = {{e.interface(), HalInterface{e.interface(), {e.instance()}}}}});
         return true;
     });
