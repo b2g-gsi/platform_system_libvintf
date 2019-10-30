@@ -115,6 +115,8 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // Alternative to forEachInstance if you just need a set of instance names instead.
     std::set<std::string> getHidlInstances(const std::string& package, const Version& version,
                                            const std::string& interfaceName) const;
+    std::set<std::string> getAidlInstances(const std::string& package,
+                                           const std::string& interfaceName) const;
 
     // Return whether instance is in getHidlInstances(...).
     bool hasHidlInstance(const std::string& package, const Version& version,
