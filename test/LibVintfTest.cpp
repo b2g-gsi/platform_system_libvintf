@@ -3689,6 +3689,10 @@ TEST_F(LibVintfTest, Aidl) {
         EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IFoo", "does_not_exist"));
         EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IDoesNotExist", "default"));
         EXPECT_FALSE(manifest.hasAidlInstance("android.system.does_not_exist", "IFoo", "default"));
+        EXPECT_EQ(manifest.getAidlInstances("android.system.foo", "IFoo"),
+                  std::set<std::string>({"default", "test0"}));
+        EXPECT_EQ(manifest.getAidlInstances("android.system.does_not_exist", "IFoo"),
+                  std::set<std::string>({}));
     }
 
     {
@@ -3709,6 +3713,10 @@ TEST_F(LibVintfTest, Aidl) {
         EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IFoo", "does_not_exist"));
         EXPECT_FALSE(manifest.hasAidlInstance("android.system.foo", "IDoesNotExist", "default"));
         EXPECT_FALSE(manifest.hasAidlInstance("android.system.does_not_exist", "IFoo", "default"));
+        EXPECT_EQ(manifest.getAidlInstances("android.system.foo", "IFoo"),
+                  std::set<std::string>({"default", "test0"}));
+        EXPECT_EQ(manifest.getAidlInstances("android.system.does_not_exist", "IFoo"),
+                  std::set<std::string>({}));
     }
 
     {
