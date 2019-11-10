@@ -1564,7 +1564,7 @@ TEST_P(FrameworkManifestTest, Existence) {
         expectContainsInterface("IProductEtcFragment", std::get<3>(GetParam()));
     }
 }
-INSTANTIATE_TEST_SUITE_P(, FrameworkManifestTest,
+INSTANTIATE_TEST_SUITE_P(Vintf, FrameworkManifestTest,
                          ::testing::Combine(Bool(), Bool(), Bool(), Bool()));
 
 class GetCompatibleKernelRequirementTest : public MultiMatrixTest {
