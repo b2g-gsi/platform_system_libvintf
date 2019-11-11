@@ -474,6 +474,11 @@ std::set<std::string> HalManifest::getHidlInstances(const std::string& package,
     return getInstances(HalFormat::HIDL, package, version, interfaceName);
 }
 
+std::set<std::string> HalManifest::getAidlInstances(const std::string& package,
+                                                    const std::string& interfaceName) const {
+    return getInstances(HalFormat::AIDL, package, details::kFakeAidlVersion, interfaceName);
+}
+
 bool HalManifest::hasHidlInstance(const std::string& package, const Version& version,
                                   const std::string& interfaceName,
                                   const std::string& instance) const {
