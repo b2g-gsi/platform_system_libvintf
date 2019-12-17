@@ -52,6 +52,8 @@ class MockRuntimeInfo : public RuntimeInfo {
     status_t doFetch(RuntimeInfo::FetchFlags flags);
     void failNextFetch() { failNextFetch_ = true; }
     void setNextFetchKernelInfo(KernelVersion&& v, std::map<std::string, std::string>&& configs);
+    void setNextFetchKernelInfo(const KernelVersion& v,
+                                const std::map<std::string, std::string>& configs);
 
    private:
     bool failNextFetch_ = false;

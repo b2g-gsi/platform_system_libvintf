@@ -144,7 +144,6 @@ TEST_F(AssembleVintfTest, FrameworkMatrixEmpty) {
 
 TEST_F(AssembleVintfTest, FrameworkMatrix) {
     std::string tail =
-        "    <kernel version=\"3.18.0\">\n"
         "        <config>\n"
         "            <key>CONFIG_FOO</key>\n"
         "            <value type=\"tristate\">y</value>\n"
@@ -160,7 +159,9 @@ TEST_F(AssembleVintfTest, FrameworkMatrix) {
         "</compatibility-matrix>\n";
 
     std::string xmlEmpty =
-        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n" + tail;
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
+        "    <kernel version=\"3.18.0\">\n" +
+        tail;
 
     std::string xml1 =
         "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
@@ -246,7 +247,8 @@ TEST_F(AssembleVintfTest, FrameworkMatrix) {
         "            <name>IFoo</name>\n"
         "            <instance>default</instance>\n"
         "        </interface>\n"
-        "    </hal>\n" +
+        "    </hal>\n"
+        "    <kernel version=\"3.18.0\" level=\"1\">\n" +
             tail,
         getOutput());
 
@@ -263,7 +265,8 @@ TEST_F(AssembleVintfTest, FrameworkMatrix) {
         "            <name>IFoo</name>\n"
         "            <instance>default</instance>\n"
         "        </interface>\n"
-        "    </hal>\n" +
+        "    </hal>\n"
+        "    <kernel version=\"3.18.0\" level=\"2\">\n" +
             tail,
         getOutput());
 
@@ -279,7 +282,8 @@ TEST_F(AssembleVintfTest, FrameworkMatrix) {
         "            <name>IFoo</name>\n"
         "            <instance>default</instance>\n"
         "        </interface>\n"
-        "    </hal>\n" +
+        "    </hal>\n"
+        "    <kernel version=\"3.18.0\" level=\"3\">\n" +
             tail,
         getOutput());
 }
@@ -577,6 +581,67 @@ TEST_F(AssembleVintfTest, AidlAndHidlNames) {
         "    </hal>\n",
         getOutput());
 }
+
+// Merge kernel FCM from manually written device manifest and <config> from
+// parsing kernel prebuilt.
+TEST_F(AssembleVintfTest, MergeKernelFcmAndConfigs) {
+    addInput("manifest.xml",
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\">\n"
+        "    <kernel target-level=\"2\"/>\n"
+        "</manifest>\n");
+    getInstance()->addKernelConfigInputStream({3, 18, 10}, "android-base.config",
+                                              makeStream("CONFIG_FOO=y"));
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN("<kernel version=\"3.18.10\" target-level=\"2\">", getOutput());
+}
+
+TEST_F(AssembleVintfTest, NoAutoSetKernelFcm) {
+    addInput("manifest.xml",
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\">\n"
+        "    <kernel version=\"3.18.10\"/>\n"
+        "</manifest>\n");
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN("<kernel version=\"3.18.10\"/>", getOutput());
+}
+
+TEST_F(AssembleVintfTest, AutoSetKernelFcm) {
+    addInput("manifest.xml",
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"5\">\n"
+        "    <kernel version=\"5.4.10\"/>\n"
+        "</manifest>\n");
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN("<kernel version=\"5.4.10\" target-level=\"5\"/>", getOutput());
+}
+
+TEST_F(AssembleVintfTest, NoAutoSetKernelFcmWithConfig) {
+    addInput("manifest.xml",
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\" />\n");
+    getInstance()->addKernelConfigInputStream({3, 18, 10}, "android-base.config",
+                                              makeStream("CONFIG_FOO=y"));
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN("<kernel version=\"3.18.10\">", getOutput());
+}
+
+TEST_F(AssembleVintfTest, AutoSetKernelFcmWithConfig) {
+    addInput("manifest.xml",
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"5\" />\n");
+    getInstance()->addKernelConfigInputStream({5, 4, 10}, "android-base.config",
+                                              makeStream("CONFIG_FOO=y"));
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN("<kernel version=\"5.4.10\" target-level=\"5\">", getOutput());
+}
+
+// Automatically add kernel FCM when parsing framework matrix for a single FCM version.
+TEST_F(AssembleVintfTest, AutoSetMatrixKernelFcm) {
+    addInput("compatibility_matrix.xml",
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\"/>\n"
+    );
+    getInstance()->addKernelConfigInputStream({3, 18, 10}, "android-base.config",
+                                              makeStream(""));
+    EXPECT_TRUE(getInstance()->assemble());
+    EXPECT_IN("<kernel version=\"3.18.10\" level=\"1\"/>", getOutput());
+}
+
 // clang-format on
 
 }  // namespace vintf

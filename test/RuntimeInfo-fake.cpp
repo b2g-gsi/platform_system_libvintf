@@ -41,13 +41,20 @@ status_t MockRuntimeInfo::doFetch(RuntimeInfo::FetchFlags) {
     mOsVersion = "#4 SMP PREEMPT Wed Feb 1 18:10:52 PST 2017";
     mHardwareId = "aarch64";
     mKernelSepolicyVersion = 30;
-    mKernel = kernel_info_;
+    mKernel.mVersion = kernel_info_.mVersion;
+    mKernel.mConfigs = kernel_info_.mConfigs;
+    // fetchAllInformtion does not fetch kernel FCM version
     return OK;
 }
 void MockRuntimeInfo::setNextFetchKernelInfo(KernelVersion&& v,
                                              std::map<std::string, std::string>&& configs) {
     kernel_info_.mVersion = std::move(v);
     kernel_info_.mConfigs = std::move(configs);
+}
+void MockRuntimeInfo::setNextFetchKernelInfo(const KernelVersion& v,
+                                             const std::map<std::string, std::string>& configs) {
+    kernel_info_.mVersion = v;
+    kernel_info_.mConfigs = configs;
 }
 
 }  // namespace details

@@ -15,6 +15,7 @@
  */
 
 #include <android-base/logging.h>
+#include <android-base/strings.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -26,6 +27,7 @@
 
 #include <vintf/VintfObject.h>
 #include <vintf/parse_string.h>
+#include <vintf/parse_xml.h>
 #include "test_constants.h"
 #include "utils-fake.h"
 
@@ -42,6 +44,9 @@ static AssertionResult In(const std::string& sub, const std::string& str) {
 
 namespace android {
 namespace vintf {
+
+extern XmlConverter<KernelInfo>& gKernelInfoConverter;
+
 namespace testing {
 
 using namespace ::android::vintf::details;
@@ -682,22 +687,32 @@ TEST_F(VintfObjectIncompatibleTest, TestInputVsDeviceSuccess) {
     ASSERT_STREQ(error.c_str(), "");
 }
 
+const std::string vendorManifestKernelFcm =
+        "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+        "    <kernel version=\"3.18.999\" target-level=\"92\"/>\n"
+        "</manifest>\n";
+
 // Test fixture that provides compatible metadata from the mock device.
 class VintfObjectRuntimeInfoTest : public VintfObjectTestBase {
    protected:
     virtual void SetUp() {
         VintfObjectTestBase::SetUp();
-        // clear fetch flags
-        runtimeInfoFactory().getInfo()->failNextFetch();
-        vintfObject->getRuntimeInfo(true /* skipCache */, RuntimeInfo::FetchFlag::ALL);
+        setupMockFetcher(vendorManifestKernelFcm, "", "", "", "");
+        expectVendorManifest();
     }
     virtual void TearDown() {
         Mock::VerifyAndClear(&runtimeInfoFactory());
         Mock::VerifyAndClear(runtimeInfoFactory().getInfo().get());
     }
+    Level getKernelLevel(const RuntimeInfo* rf) {
+        return rf->kernelLevel();
+    }
 };
 
 TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
+    // RuntimeInfo.fetchAllInformation is never called with KERNEL_FCM set.
+    auto allExceptKernelFcm = RuntimeInfo::FetchFlag::ALL & ~RuntimeInfo::FetchFlag::KERNEL_FCM;
+
     InSequence s;
 
     EXPECT_CALL(*runtimeInfoFactory().getInfo(),
@@ -707,16 +722,29 @@ TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
                 fetchAllInformation(RuntimeInfo::FetchFlag::CPU_VERSION));
     EXPECT_CALL(
         *runtimeInfoFactory().getInfo(),
-        fetchAllInformation(RuntimeInfo::FetchFlag::ALL & ~RuntimeInfo::FetchFlag::CPU_VERSION));
-    EXPECT_CALL(*runtimeInfoFactory().getInfo(), fetchAllInformation(RuntimeInfo::FetchFlag::ALL));
+        fetchAllInformation(allExceptKernelFcm & ~RuntimeInfo::FetchFlag::CPU_VERSION));
+    EXPECT_CALL(*runtimeInfoFactory().getInfo(), fetchAllInformation(allExceptKernelFcm));
     EXPECT_CALL(*runtimeInfoFactory().getInfo(), fetchAllInformation(RuntimeInfo::FetchFlag::NONE));
 
-    vintfObject->getRuntimeInfo(false /* skipCache */, RuntimeInfo::FetchFlag::CPU_VERSION);
-    vintfObject->getRuntimeInfo(false /* skipCache */, RuntimeInfo::FetchFlag::CPU_VERSION);
-    vintfObject->getRuntimeInfo(true /* skipCache */, RuntimeInfo::FetchFlag::CPU_VERSION);
-    vintfObject->getRuntimeInfo(false /* skipCache */, RuntimeInfo::FetchFlag::ALL);
-    vintfObject->getRuntimeInfo(true /* skipCache */, RuntimeInfo::FetchFlag::ALL);
-    vintfObject->getRuntimeInfo(false /* skipCache */, RuntimeInfo::FetchFlag::ALL);
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+                                                   RuntimeInfo::FetchFlag::CPU_VERSION));
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+                                                   RuntimeInfo::FetchFlag::CPU_VERSION));
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(true /* skipCache */,
+                                                   RuntimeInfo::FetchFlag::CPU_VERSION));
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+                                                   RuntimeInfo::FetchFlag::ALL));
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(true /* skipCache */,
+                                                   RuntimeInfo::FetchFlag::ALL));
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+                                                   RuntimeInfo::FetchFlag::ALL));
+}
+
+TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfoKernelFcm) {
+    auto rf = vintfObject->getRuntimeInfo(false /* skipCache */,
+                                          RuntimeInfo::FetchFlag::KERNEL_FCM);
+    ASSERT_NE(nullptr, rf);
+    ASSERT_EQ(Level{92}, getKernelLevel(rf.get()));
 }
 
 // Test fixture that provides incompatible metadata from the mock device.
@@ -1334,8 +1362,8 @@ TEST_F(RegexTest, DeprecateLevel3) {
 // Set of framework matrices of different FCM version with <kernel>.
 //
 
-#define FAKE_KERNEL(__version__, __key__)                   \
-    "    <kernel version=\"" __version__ "\">\n"            \
+#define FAKE_KERNEL(__version__, __key__, __level__)                   \
+    "    <kernel version=\"" __version__ "\" level=\"" #__level__ "\">\n"            \
     "        <config>\n"                                    \
     "            <key>CONFIG_" __key__ "</key>\n"           \
     "            <value type=\"tristate\">y</value>\n"      \
@@ -1345,19 +1373,29 @@ TEST_F(RegexTest, DeprecateLevel3) {
 const static std::vector<std::string> systemMatrixKernelXmls = {
     // 1.xml
     "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
-    FAKE_KERNEL("1.0.0", "A1")
-    FAKE_KERNEL("2.0.0", "B1")
+    FAKE_KERNEL("1.0.0", "A1", 1)
+    FAKE_KERNEL("2.0.0", "B1", 1)
     "</compatibility-matrix>\n",
     // 2.xml
     "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
-    FAKE_KERNEL("2.0.0", "B2")
-    FAKE_KERNEL("3.0.0", "C2")
-    FAKE_KERNEL("4.0.0", "D2")
+    FAKE_KERNEL("2.0.0", "B2", 2)
+    FAKE_KERNEL("3.0.0", "C2", 2)
+    FAKE_KERNEL("4.0.0", "D2", 2)
     "</compatibility-matrix>\n",
     // 3.xml
     "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"3\">\n"
-    FAKE_KERNEL("4.0.0", "D3")
-    FAKE_KERNEL("5.0.0", "E3")
+    FAKE_KERNEL("4.0.0", "D3", 3)
+    FAKE_KERNEL("5.0.0", "E3", 3)
+    "</compatibility-matrix>\n",
+    // 4.xml
+    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"4\">\n"
+    FAKE_KERNEL("5.0.0", "E4", 4)
+    FAKE_KERNEL("6.0.0", "F4", 4)
+    "</compatibility-matrix>\n",
+    // 5.xml
+    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"5\">\n"
+    FAKE_KERNEL("6.0.0", "F5", 5)
+    FAKE_KERNEL("7.0.0", "G5", 5)
     "</compatibility-matrix>\n",
 };
 
@@ -1373,12 +1411,12 @@ TEST_F(KernelTest, Level1AndLevel2) {
     ASSERT_NE(nullptr, matrix);
     std::string xml = gCompatibilityMatrixConverter(*matrix);
 
-    EXPECT_IN(FAKE_KERNEL("1.0.0", "A1"), xml) << "\nOld requirements must not change.";
-    EXPECT_IN(FAKE_KERNEL("2.0.0", "B1"), xml) << "\nOld requirements must not change.";
-    EXPECT_IN(FAKE_KERNEL("3.0.0", "C2"), xml) << "\nShould see <kernel> from new matrices";
-    EXPECT_IN(FAKE_KERNEL("4.0.0", "D2"), xml) << "\nShould see <kernel> from new matrices";
+    EXPECT_IN(FAKE_KERNEL("1.0.0", "A1", 1), xml) << "\nOld requirements must not change.";
+    EXPECT_IN(FAKE_KERNEL("2.0.0", "B1", 1), xml) << "\nOld requirements must not change.";
+    EXPECT_IN(FAKE_KERNEL("3.0.0", "C2", 2), xml) << "\nShould see <kernel> from new matrices";
+    EXPECT_IN(FAKE_KERNEL("4.0.0", "D2", 2), xml) << "\nShould see <kernel> from new matrices";
 
-    EXPECT_NOT_IN(FAKE_KERNEL("2.0.0", "B2"), xml) << "\nOld requirements must not change";
+    EXPECT_IN(FAKE_KERNEL("2.0.0", "B2", 2), xml) << "\nShould see <kernel> from new matrices";
 }
 
 // Assume that we are developing level 3. Test that old <kernel> requirements should
@@ -1391,15 +1429,151 @@ TEST_F(KernelTest, Level1AndMore) {
     ASSERT_NE(nullptr, matrix);
     std::string xml = gCompatibilityMatrixConverter(*matrix);
 
-    EXPECT_IN(FAKE_KERNEL("1.0.0", "A1"), xml) << "\nOld requirements must not change.";
-    EXPECT_IN(FAKE_KERNEL("2.0.0", "B1"), xml) << "\nOld requirements must not change.";
-    EXPECT_IN(FAKE_KERNEL("3.0.0", "C2"), xml) << "\nOld requirements must not change.";
-    EXPECT_IN(FAKE_KERNEL("4.0.0", "D2"), xml) << "\nOld requirements must not change.";
-    EXPECT_IN(FAKE_KERNEL("5.0.0", "E3"), xml) << "\nShould see <kernel> from new matrices";
+    EXPECT_IN(FAKE_KERNEL("1.0.0", "A1", 1), xml) << "\nOld requirements must not change.";
+    EXPECT_IN(FAKE_KERNEL("2.0.0", "B1", 1), xml) << "\nOld requirements must not change.";
+    EXPECT_IN(FAKE_KERNEL("3.0.0", "C2", 2), xml) << "\nOld requirements must not change.";
+    EXPECT_IN(FAKE_KERNEL("4.0.0", "D2", 2), xml) << "\nOld requirements must not change.";
+    EXPECT_IN(FAKE_KERNEL("5.0.0", "E3", 3), xml) << "\nShould see <kernel> from new matrices";
 
-    EXPECT_NOT_IN(FAKE_KERNEL("2.0.0", "B2"), xml) << "\nOld requirements must not change";
-    EXPECT_NOT_IN(FAKE_KERNEL("4.0.0", "D3"), xml) << "\nOld requirements must not change";
+    EXPECT_IN(FAKE_KERNEL("2.0.0", "B2", 2), xml) << "\nShould see <kernel> from new matrices";
+    EXPECT_IN(FAKE_KERNEL("4.0.0", "D3", 3), xml) << "\nShould see <kernel> from new matrices";
 }
+
+class KernelTestP : public KernelTest, public WithParamInterface<
+    std::tuple<std::vector<std::string>, KernelInfo, Level, Level, bool>> {
+   public:
+    void expectKernelFcmVersion(size_t targetFcm, Level kernelFcm) {
+        std::string xml = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
+                          to_string(static_cast<Level>(targetFcm)) + "\">\n";
+        if (kernelFcm != Level::UNSPECIFIED) {
+            xml += "    <kernel target-level=\"" + to_string(kernelFcm) + "\"/>\n";
+        }
+        xml += "</manifest>";
+        expectFetch(kVendorManifest, xml);
+    }
+};
+// Assume that we are developing level 2. Test that old <kernel> requirements should
+// not change and new <kernel> versions are added.
+TEST_P(KernelTestP, Test) {
+    auto&& [matrices, info, targetFcm, kernelFcm, pass] = GetParam();
+
+    SetUpMockSystemMatrices(matrices);
+    expectKernelFcmVersion(targetFcm, kernelFcm);
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo(info.version(), info.configs());
+    auto matrix = vintfObject->getFrameworkCompatibilityMatrix();
+    auto runtime = vintfObject->getRuntimeInfo();
+    ASSERT_NE(nullptr, matrix);
+    ASSERT_NE(nullptr, runtime);
+    std::string fallbackError = kernelFcm == Level::UNSPECIFIED
+        ? "\nOld requirements must not change"
+        : "\nMust not pull unnecessary requirements from new matrices";
+    std::string error;
+    ASSERT_EQ(pass, runtime->checkCompatibility(*matrix, &error))
+            << (pass ? error : fallbackError);
+}
+
+KernelInfo MakeKernelInfo(const std::string& version, const std::string& key) {
+    KernelInfo info;
+    CHECK(gKernelInfoConverter(&info,
+                               "    <kernel version=\"" + version + "\">\n"
+                               "        <config>\n"
+                               "            <key>CONFIG_" + key + "</key>\n"
+                               "            <value type=\"tristate\">y</value>\n"
+                               "        </config>\n"
+                               "    </kernel>\n"));
+    return info;
+}
+
+std::vector<KernelTestP::ParamType> KernelTestParamValues() {
+    std::vector<KernelTestP::ParamType> ret;
+    std::vector<std::string> matrices = {systemMatrixKernelXmls[0], systemMatrixKernelXmls[1]};
+    ret.emplace_back(matrices, MakeKernelInfo("1.0.0", "A1"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B1"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("3.0.0", "C2"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("4.0.0", "D2"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B2"), Level{1}, Level::UNSPECIFIED, false);
+
+    ret.emplace_back(matrices, MakeKernelInfo("1.0.0", "A1"), Level{1}, Level{1}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B1"), Level{1}, Level{1}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("3.0.0", "C2"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("4.0.0", "D2"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B2"), Level{1}, Level{1}, true);
+
+    matrices = systemMatrixKernelXmls;
+    ret.emplace_back(matrices, MakeKernelInfo("1.0.0", "A1"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B1"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("3.0.0", "C2"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("4.0.0", "D2"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("5.0.0", "E3"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{1}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B2"), Level{1}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("4.0.0", "D3"), Level{1}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("5.0.0", "E4"), Level{1}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F5"), Level{1}, Level::UNSPECIFIED, false);
+
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{2}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{3}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{4}, Level::UNSPECIFIED, true);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{5}, Level::UNSPECIFIED, false);
+
+    ret.emplace_back(matrices, MakeKernelInfo("1.0.0", "A1"), Level{1}, Level{1}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B1"), Level{1}, Level{1}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("2.0.0", "B2"), Level{1}, Level{1}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("3.0.0", "C2"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("3.0.0", "C3"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("4.0.0", "D2"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("4.0.0", "D3"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("5.0.0", "E3"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("5.0.0", "E4"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F5"), Level{1}, Level{1}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{1}, Level{1}, false);
+
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{2}, Level{2}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{3}, Level{3}, false);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{4}, Level{4}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("6.0.0", "F4"), Level{5}, Level{5}, false);
+
+    return ret;
+}
+
+std::vector<KernelTestP::ParamType> RKernelTestParamValues() {
+    std::vector<KernelTestP::ParamType> ret;
+    std::vector<std::string> matrices = systemMatrixKernelXmls;
+
+    // Must not use *-r+ kernels without specifying kernel FCM version
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{1}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{2}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{3}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{4}, Level::UNSPECIFIED, false);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{5}, Level::UNSPECIFIED, false);
+
+    // May use *-r+ kernels with kernel FCM version
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{1}, Level{5}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{2}, Level{5}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{3}, Level{5}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{4}, Level{5}, true);
+    ret.emplace_back(matrices, MakeKernelInfo("7.0.0", "G5"), Level{5}, Level{5}, true);
+
+    return ret;
+}
+
+std::string PrintKernelTestParam(const TestParamInfo<KernelTestP::ParamType>& info) {
+    const auto& [matrices, kernelInfo, targetFcm, kernelFcm, pass] = info.param;
+    return (matrices.size() == 2 ? "Level1AndLevel2_" : "Level1AndMore_") +
+           android::base::StringReplace(to_string(kernelInfo.version()), ".", "_", true) + "_" +
+           android::base::StringReplace(kernelInfo.configs().begin()->first, "CONFIG_", "", false) +
+           "_TargetFcm" +
+           (targetFcm == Level::UNSPECIFIED ? "Unspecified" : to_string(targetFcm)) +
+           "_KernelFcm" +
+           (kernelFcm == Level::UNSPECIFIED ? "Unspecified" : to_string(kernelFcm)) +
+           "_Should" + (pass ? "Pass" : "Fail");
+}
+
+INSTANTIATE_TEST_SUITE_P(KernelTest, KernelTestP, ValuesIn(KernelTestParamValues()),
+                         &PrintKernelTestParam);
+INSTANTIATE_TEST_SUITE_P(NoRKernelWithoutFcm, KernelTestP, ValuesIn(RKernelTestParamValues()),
+                         &PrintKernelTestParam);
 
 class VintfObjectPartialUpdateTest : public MultiMatrixTest {
    protected:

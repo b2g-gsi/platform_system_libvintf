@@ -61,8 +61,9 @@ struct MatrixKernel {
     friend struct MatrixKernelConditionsConverter;
     friend struct CompatibilityMatrix;
     friend class AssembleVintfImpl;
+    friend class KernelInfo;
 
-    bool setSourceMatrixLevel(Level level);
+    void setSourceMatrixLevel(Level level);
     Level getSourceMatrixLevel() const;
 
     KernelVersion mMinLts;
@@ -70,9 +71,7 @@ struct MatrixKernel {
     std::vector<KernelConfig> mConditions;
 
     // The "level" field of compatibility matrix that this <kernel> tag is
-    // originally from. Note: this field is *NOT* emitted in the serialized
-    // form, which means this information is lost when the combined
-    // compatibility matrix is serialized.
+    // originally from.
     // If UNSPECIFIED, this value should be retrieved from the parent
     // CompatibilityMatrix object.
     Level mSourceMatrixLevel = Level::UNSPECIFIED;

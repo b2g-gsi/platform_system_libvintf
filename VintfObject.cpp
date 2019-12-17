@@ -461,6 +461,21 @@ std::shared_ptr<const RuntimeInfo> VintfObject::getRuntimeInfo(bool skipCache,
         mDeviceRuntimeInfo.object = getRuntimeInfoFactory()->make_shared();
     }
 
+    // Fetch kernel FCM version from device HAL manifest and store it in RuntimeInfo too.
+    if ((flags & RuntimeInfo::FetchFlag::KERNEL_FCM) != 0) {
+        auto manifest = getDeviceHalManifest();
+        if (!manifest) {
+            mDeviceRuntimeInfo.fetchedFlags &= ~RuntimeInfo::FetchFlag::KERNEL_FCM;
+            return nullptr;
+        }
+        Level level = Level::UNSPECIFIED;
+        if (manifest->kernel().has_value()) {
+            level = manifest->kernel()->level();
+        }
+        mDeviceRuntimeInfo.object->setKernelLevel(level);
+        flags &= ~RuntimeInfo::FetchFlag::KERNEL_FCM;
+    }
+
     status_t status = mDeviceRuntimeInfo.object->fetchAllInformation(flags);
     if (status != OK) {
         mDeviceRuntimeInfo.fetchedFlags &= (~flags);  // mark the fields as "not fetched"
@@ -821,8 +836,8 @@ std::optional<KernelRequirement> VintfObject::getCompatibleKernelRequirement(std
         if (error) *error = "Cannot retrieve runtime information";
         return std::nullopt;
     }
-    auto reqs =
-        runtime_info->mKernel.getMatchedKernelRequirements(matrix->framework.mKernels, error);
+    auto reqs = runtime_info->mKernel.getMatchedKernelRequirements(
+        matrix->framework.mKernels, runtime_info->kernelLevel(), error);
     if (reqs.empty()) {
         if (error) error->insert(0, "Cannot find any matched kernel requirements: ");
         return std::nullopt;
