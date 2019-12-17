@@ -347,7 +347,9 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix &mat, std::string
         }
 
         if (!!kernel() &&
-            kernel()->getMatchedKernelRequirements(mat.framework.mKernels, error).empty()) {
+            kernel()
+                ->getMatchedKernelRequirements(mat.framework.mKernels, kernel()->level(), error)
+                .empty()) {
             return false;
         }
     }
@@ -517,6 +519,23 @@ const std::optional<KernelInfo>& HalManifest::kernel() const {
     return device.mKernel;
 }
 
+bool HalManifest::mergeKernel(std::optional<KernelInfo>* other, std::string* error) {
+    if (!other->has_value()) {
+        return true;
+    }
+
+    if (device.mKernel.has_value()) {
+        if (!device.mKernel->merge(&**other, error)) {
+            return false;
+        }
+    } else {
+        device.mKernel = std::move(*other);
+    }
+
+    *other = std::nullopt;
+    return true;
+}
+
 bool HalManifest::addAll(HalManifest* other, std::string* error) {
     if (type() != other->type()) {
         if (error) {
@@ -551,12 +570,7 @@ bool HalManifest::addAll(HalManifest* other, std::string* error) {
             return false;
         }
 
-        if (!mergeField(&device.mKernel, &other->device.mKernel)) {
-            // If fails, both have values.
-            if (error) {
-                *error = "Conflicting kernel: " + to_string(device.mKernel->version()) + " vs. " +
-                         to_string(other->device.mKernel->version());
-            }
+        if (!mergeKernel(&other->device.mKernel, error)) {
             return false;
         }
     } else if (type() == SchemaType::FRAMEWORK) {

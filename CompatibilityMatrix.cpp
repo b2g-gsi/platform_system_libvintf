@@ -39,16 +39,24 @@ bool CompatibilityMatrix::addKernel(MatrixKernel&& kernel, std::string* error) {
         return false;
     }
 
+    if (kernel.getSourceMatrixLevel() == Level::UNSPECIFIED) {
+        kernel.setSourceMatrixLevel(level());
+    }
+
     auto it = framework.mKernels.begin();
     for (; it != framework.mKernels.end(); ++it) {
+        if (it->getSourceMatrixLevel() != kernel.getSourceMatrixLevel()) {
+            continue;
+        }
         if (it->minLts() == kernel.minLts()) {
             break;
         }
-        if (it->minLts().version == kernel.minLts().version &&
-            it->minLts().majorRev == kernel.minLts().majorRev) {
+        if (it->minLts().dropMinor() == kernel.minLts().dropMinor()) {
             if (error) {
-                *error = "Kernel version mismatch; cannot add " + to_string(kernel.minLts()) +
-                         " because " + to_string(it->minLts()) + " was added.";
+                *error = "Kernel version mismatch; for level " +
+                         to_string(kernel.getSourceMatrixLevel()) + ", cannot add " +
+                         to_string(kernel.minLts()) + " because " + to_string(it->minLts()) +
+                         " was added.";
             }
             return false;
         }
@@ -245,52 +253,16 @@ bool CompatibilityMatrix::addAllXmlFilesAsOptional(CompatibilityMatrix* other, s
     return true;
 }
 
-// Merge Kernel.
-// Add <kernel> from exact "level", then optionally add <kernel> from high levels to low levels.
-// For example, (each letter is a kernel version x.y.z)
-// 1.xml: A1, B1
-// 2.xml: B2, C2, D2
-// 3.xml: D3, E3
-// Then the combined 1.xml should have
-// A1, B1 (from 1.xml, required), C2, D2, E3 (optional, use earliest possible).
+// Merge Kernel. See KernelInfo::getMatchedKernelRequirements for details on compatibility checks.
 bool CompatibilityMatrix::addAllKernels(CompatibilityMatrix* other, std::string* error) {
     for (MatrixKernel& kernel : other->framework.mKernels) {
+        if (kernel.getSourceMatrixLevel() == Level::UNSPECIFIED) {
+            kernel.setSourceMatrixLevel(other->level());
+        }
         KernelVersion ver = kernel.minLts();
         if (!addKernel(std::move(kernel), error)) {
             if (error) {
                 *error = "Cannot add kernel version " + to_string(ver) + ": " + *error;
-            }
-            return false;
-        }
-    }
-    return true;
-}
-
-bool CompatibilityMatrix::addAllKernelsAsOptional(CompatibilityMatrix* other, std::string* error) {
-    if (other == nullptr || other->level() <= level()) {
-        return true;
-    }
-
-    for (MatrixKernel& kernelToAdd : other->framework.mKernels) {
-        bool exists =
-            std::any_of(this->framework.mKernels.begin(), this->framework.mKernels.end(),
-                        [&kernelToAdd](const MatrixKernel& existing) {
-                            return kernelToAdd.minLts().version == existing.minLts().version &&
-                                   kernelToAdd.minLts().majorRev == existing.minLts().majorRev;
-                        });
-
-        if (exists) {
-            // Shouldn't retroactively add requirements to minLts(), so ignore this.
-            // This happens even when kernelToAdd.conditions() != existing.conditions().
-            continue;
-        }
-
-        (void)kernelToAdd.setSourceMatrixLevel(other->level());
-
-        KernelVersion minLts = kernelToAdd.minLts();
-        if (!addKernel(std::move(kernelToAdd), error)) {
-            if (error) {
-                *error = "Cannot add " + to_string(minLts) + ": " + *error;
             }
             return false;
         }
@@ -437,7 +409,7 @@ bool CompatibilityMatrix::addAllAsOptional(Named<CompatibilityMatrix>* inputMatr
                                            std::string* error) {
     if (!addAllHalsAsOptional(&inputMatrix->object, error) ||
         !addAllXmlFilesAsOptional(&inputMatrix->object, error) ||
-        !addAllKernelsAsOptional(&inputMatrix->object, error)) {
+        !addAllKernels(&inputMatrix->object, error)) {
         if (error) {
             *error = "File \"" + inputMatrix->name + "\" cannot be added: " + *error;
         }

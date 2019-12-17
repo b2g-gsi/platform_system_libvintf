@@ -132,9 +132,6 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     bool insertInstance(const FqInstance& fqInstance, Transport transport, Arch arch, HalFormat fmt,
                         std::string* error = nullptr);
 
-    // Get the <kernel> tag. Assumes type() == DEVICE.
-    const std::optional<KernelInfo>& kernel() const;
-
     // Add everything from another manifest. If no errors (return true), it is guaranteed
     // that other->empty() == true after execution.
     [[nodiscard]] bool addAll(HalManifest* other, std::string* error = nullptr);
@@ -189,6 +186,15 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // Return whether instance is in getInstances(...).
     bool hasInstance(HalFormat format, const std::string& package, const Version& version,
                      const std::string& interfaceName, const std::string& instance) const;
+
+    // Get the <kernel> tag. Assumes type() == DEVICE.
+    // - On host, <kernel> tag only exists for the fully assembled HAL manifest.
+    // - On device, this only contain information about level(). Other information should be
+    //   looked up via RuntimeInfo.
+    const std::optional<KernelInfo>& kernel() const;
+
+    // Merge information of other to this.
+    bool mergeKernel(std::optional<KernelInfo>* other, std::string* error = nullptr);
 
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;

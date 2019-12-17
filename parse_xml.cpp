@@ -656,6 +656,10 @@ struct MatrixKernelConverter : public XmlNodeConverter<MatrixKernel> {
         }
         appendAttr(root, "version", kv);
 
+        if (kernel.getSourceMatrixLevel() != Level::UNSPECIFIED) {
+            appendAttr(root, "level", kernel.getSourceMatrixLevel());
+        }
+
         if (!kernel.mConditions.empty()) {
             appendChild(root, matrixKernelConditionsConverter(kernel.mConditions, d));
         }
@@ -664,12 +668,15 @@ struct MatrixKernelConverter : public XmlNodeConverter<MatrixKernel> {
         }
     }
     bool buildObject(MatrixKernel* object, NodeType* root, std::string* error) const override {
+        Level sourceMatrixLevel = Level::UNSPECIFIED;
         if (!parseAttr(root, "version", &object->mMinLts, error) ||
+            !parseOptionalAttr(root, "level", Level::UNSPECIFIED, &sourceMatrixLevel, error) ||
             !parseOptionalChild(root, matrixKernelConditionsConverter, {}, &object->mConditions,
                                 error) ||
             !parseChildren(root, matrixKernelConfigConverter, &object->mConfigs, error)) {
             return false;
         }
+        object->setSourceMatrixLevel(sourceMatrixLevel);
         return true;
     }
 };
@@ -949,12 +956,16 @@ struct KernelInfoConverter : public XmlNodeConverter<KernelInfo> {
         if (o.version() != KernelVersion{}) {
             appendAttr(root, "version", o.version());
         }
+        if (o.level() != Level::UNSPECIFIED) {
+            appendAttr(root, "target-level", o.level());
+        }
         if (flags.isKernelConfigsEnabled()) {
             appendChildren(root, kernelConfigConverter, o.configs(), d);
         }
     }
     bool buildObject(KernelInfo* o, NodeType* root, std::string* error) const override {
         return parseOptionalAttr(root, "version", {}, &o->mVersion, error) &&
+               parseOptionalAttr(root, "target-level", Level::UNSPECIFIED, &o->mLevel, error) &&
                parseChildren(root, kernelConfigConverter, &o->mConfigs, error);
     }
 };

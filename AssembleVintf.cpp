@@ -328,10 +328,31 @@ class AssembleVintfImpl : public AssembleVintf {
             std::cerr << parser.error();
             return false;
         }
-        manifest->device.mKernel = std::make_optional<KernelInfo>();
-        manifest->device.mKernel->mVersion = kernelVer;
-        manifest->device.mKernel->mConfigs = parser.configs();
+
+        // Set version and configs in manifest.
+        auto kernel_info = std::make_optional<KernelInfo>();
+        kernel_info->mVersion = kernelVer;
+        kernel_info->mConfigs = parser.configs();
+        std::string error;
+        if (!manifest->mergeKernel(&kernel_info, &error)) {
+            std::cerr << error << "\n";
+            return false;
+        }
+
         return true;
+    }
+
+    void inferDeviceManifestKernelFcm(HalManifest* manifest) {
+        // No target FCM version.
+        if (manifest->level() == Level::UNSPECIFIED) return;
+        // target FCM version < R: leave value untouched.
+        if (manifest->level() < Level::R) return;
+        // No need to infer when <kernel> tag is missing.
+        if (!manifest->kernel().has_value()) return;
+        // Kernel FCM already set.
+        if (manifest->kernel()->level() != Level::UNSPECIFIED) return;
+
+        manifest->device.mKernel->mLevel = manifest->level();
     }
 
     bool assembleHalManifest(HalManifests* halManifests) {
@@ -372,6 +393,8 @@ class AssembleVintfImpl : public AssembleVintf {
             if (!setDeviceManifestKernel(halManifest)) {
                 return false;
             }
+
+            inferDeviceManifestKernelFcm(halManifest);
         }
 
         if (halManifest->mType == SchemaType::FRAMEWORK) {

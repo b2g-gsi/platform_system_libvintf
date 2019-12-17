@@ -27,10 +27,8 @@ bool MatrixKernel::operator==(const MatrixKernel &other) const {
     return true;
 }
 
-bool MatrixKernel::setSourceMatrixLevel(Level level) {
-    if (mSourceMatrixLevel != Level::UNSPECIFIED) return false;
+void MatrixKernel::setSourceMatrixLevel(Level level) {
     mSourceMatrixLevel = level;
-    return true;
 }
 
 Level MatrixKernel::getSourceMatrixLevel() const {
