@@ -642,6 +642,51 @@ TEST_F(AssembleVintfTest, AutoSetMatrixKernelFcm) {
     EXPECT_IN("<kernel version=\"3.18.10\" level=\"1\"/>", getOutput());
 }
 
+
+TEST_F(AssembleVintfTest, WithKernelRequirements) {
+    setFakeEnvs({{"POLICYVERS", "30"},
+                 {"PLATFORM_SEPOLICY_VERSION", "10000.0"},
+                 {"PRODUCT_ENFORCE_VINTF_MANIFEST", "true"}});
+    addInput("compatibility_matrix.xml",
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+        "    <kernel version=\"3.18.1\" level=\"1\">\n"
+        "        <config>\n"
+        "            <key>CONFIG_FOO</key>\n"
+        "            <value type=\"tristate\">y</value>\n"
+        "        </config>\n"
+        "    </kernel>\n"
+        "</compatibility-matrix>\n");
+    getInstance()->setCheckInputStream(makeStream(
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\">\n"
+        "    <kernel target-level=\"1\" version=\"3.18.0\"/>\n"
+        "    <sepolicy>\n"
+        "        <version>10000.0</version>\n"
+        "    </sepolicy>\n"
+        "</manifest>\n"));
+
+    EXPECT_FALSE(getInstance()->assemble());
+}
+
+TEST_F(AssembleVintfTest, NoKernelRequirements) {
+    setFakeEnvs({{"POLICYVERS", "30"},
+                 {"PLATFORM_SEPOLICY_VERSION", "10000.0"},
+                 {"PRODUCT_ENFORCE_VINTF_MANIFEST", "true"}});
+    addInput("compatibility_matrix.xml",
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+        "    <kernel version=\"3.18.0\" level=\"1\"/>\n"
+        "</compatibility-matrix>\n");
+    getInstance()->setCheckInputStream(makeStream(
+        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\">\n"
+        "    <kernel target-level=\"1\"/>\n"
+        "    <sepolicy>\n"
+        "        <version>10000.0</version>\n"
+        "    </sepolicy>\n"
+        "</manifest>\n"));
+
+    EXPECT_TRUE(getInstance()->setNoKernelRequirements());
+    EXPECT_TRUE(getInstance()->assemble());
+}
+
 // clang-format on
 
 }  // namespace vintf

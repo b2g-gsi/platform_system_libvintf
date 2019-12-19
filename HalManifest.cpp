@@ -299,7 +299,8 @@ static bool checkSystemSdkCompatibility(const SystemSdk& matSystemSdk,
     return true;
 }
 
-bool HalManifest::checkCompatibility(const CompatibilityMatrix &mat, std::string *error) const {
+bool HalManifest::checkCompatibility(const CompatibilityMatrix& mat, std::string* error,
+                                     CheckFlags::Type flags) const {
     if (mType == mat.mType) {
         if (error != nullptr) {
             *error = "Wrong type; checking " + to_string(mType) + " manifest against "
@@ -346,7 +347,7 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix &mat, std::string
             return false;
         }
 
-        if (!!kernel() &&
+        if (flags.isKernelEnabled() && !!kernel() &&
             kernel()
                 ->getMatchedKernelRequirements(mat.framework.mKernels, kernel()->level(), error)
                 .empty()) {

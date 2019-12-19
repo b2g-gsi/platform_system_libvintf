@@ -202,7 +202,6 @@ class VintfObject {
     details::LockedRuntimeInfoCache mDeviceRuntimeInfo;
 
     // Expose functions for testing and recovery
-    friend class VintfObjectRecovery;
     friend class testing::VintfObjectTestBase;
     friend class testing::VintfObjectRuntimeInfoTest;
     friend class testing::VintfObjectCompatibleTest;
