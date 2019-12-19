@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "CheckFlags.h"
 #include "FileSystem.h"
 #include "HalGroup.h"
 #include "KernelInfo.h"
@@ -74,7 +75,8 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // - device manifest vs. framework compat-mat
     //     - checkIncompatibility for HALs returns only optional HALs
     //     - manifest.sepolicy.version match one of compat-mat.sepolicy.sepolicy-version
-    bool checkCompatibility(const CompatibilityMatrix &mat, std::string *error = nullptr) const;
+    bool checkCompatibility(const CompatibilityMatrix& mat, std::string* error = nullptr,
+                            CheckFlags::Type flags = CheckFlags::DEFAULT) const;
 
     // Generate a compatibility matrix such that checkCompatibility will return true.
     CompatibilityMatrix generateCompatibleMatrix() const;
@@ -195,6 +197,10 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
 
     // Merge information of other to this.
     bool mergeKernel(std::optional<KernelInfo>* other, std::string* error = nullptr);
+
+    // Whether the manifest contains information about the kernel for compatibility checks.
+    // True if kernel()->checkCompatibility can be called.
+    bool shouldCheckKernelCompatibility() const;
 
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;

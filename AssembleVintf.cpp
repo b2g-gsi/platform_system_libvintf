@@ -260,7 +260,7 @@ class AssembleVintfImpl : public AssembleVintf {
     bool checkDualFile(const HalManifest& manifest, const CompatibilityMatrix& matrix) {
         if (getBooleanFlag("PRODUCT_ENFORCE_VINTF_MANIFEST")) {
             std::string error;
-            if (!manifest.checkCompatibility(matrix, &error)) {
+            if (!manifest.checkCompatibility(matrix, &error, mCheckFlags)) {
                 std::cerr << "Not compatible: " << error << std::endl;
                 return false;
             }
@@ -411,7 +411,7 @@ class AssembleVintfImpl : public AssembleVintf {
 
         if (mOutputMatrix) {
             CompatibilityMatrix generatedMatrix = halManifest->generateCompatibleMatrix();
-            if (!halManifest->checkCompatibility(generatedMatrix, &error)) {
+            if (!halManifest->checkCompatibility(generatedMatrix, &error, mCheckFlags)) {
                 std::cerr << "FATAL ERROR: cannot generate a compatible matrix: " << error
                           << std::endl;
             }
@@ -749,6 +749,7 @@ class AssembleVintfImpl : public AssembleVintf {
 
     bool setNoKernelRequirements() override {
         mSerializeFlags = mSerializeFlags.disableKernelConfigs().disableKernelMinorRevision();
+        mCheckFlags = mCheckFlags.disableKernel();
         return true;
     }
 
@@ -761,6 +762,7 @@ class AssembleVintfImpl : public AssembleVintf {
     SerializeFlags::Type mSerializeFlags = SerializeFlags::EVERYTHING;
     std::map<KernelVersion, std::vector<NamedIstream>> mKernels;
     std::map<std::string, std::string> mFakeEnv;
+    CheckFlags::Type mCheckFlags = CheckFlags::DEFAULT;
 };
 
 bool AssembleVintf::openOutFile(const std::string& path) {

@@ -25,7 +25,6 @@
 #include <android-base/logging.h>
 
 #include "CompatibilityMatrix.h"
-#include "VintfObjectAfterUpdate.h"
 #include "parse_string.h"
 #include "parse_xml.h"
 #include "utils.h"
@@ -486,77 +485,6 @@ std::shared_ptr<const RuntimeInfo> VintfObject::getRuntimeInfo(bool skipCache,
     return mDeviceRuntimeInfo.object;
 }
 
-namespace details {
-
-enum class ParseStatus {
-    OK,
-    PARSE_ERROR,
-    DUPLICATED_FWK_ENTRY,
-    DUPLICATED_DEV_ENTRY,
-};
-
-static std::string toString(ParseStatus status) {
-    switch(status) {
-        case ParseStatus::OK:                   return "OK";
-        case ParseStatus::PARSE_ERROR:          return "parse error";
-        case ParseStatus::DUPLICATED_FWK_ENTRY: return "duplicated framework";
-        case ParseStatus::DUPLICATED_DEV_ENTRY: return "duplicated device";
-    }
-    return "";
-}
-
-template <typename T>
-static ParseStatus tryParse(const std::string& xml, const XmlConverter<T>& parse,
-                            VintfObjectAfterUpdate* afterUpdate) {
-    std::shared_ptr<T> ret = std::make_shared<T>();
-    if (!parse(ret.get(), xml, nullptr /* error */)) {
-        return ParseStatus::PARSE_ERROR;
-    }
-    if (!afterUpdate->set(ret)) {
-        if (ret->type() == SchemaType::FRAMEWORK) {
-            return ParseStatus::DUPLICATED_FWK_ENTRY;
-        } else if (ret->type() == SchemaType::DEVICE) {
-            return ParseStatus::DUPLICATED_DEV_ENTRY;
-        }
-        LOG(FATAL) << "unknown SchemaType: "
-                   << static_cast<std::underlying_type_t<SchemaType>>(ret->type());
-    }
-    return ParseStatus::OK;
-}
-
-}  // namespace details
-
-// Simulate applying xmls to VintfObject, then checkCompatibility as usual.
-int32_t VintfObject::checkCompatibility(const std::vector<std::string>& xmls, std::string* error,
-                                        CheckFlags::Type flags) {
-    VintfObjectAfterUpdate afterUpdate(this);
-    ParseStatus parseStatus = ParseStatus::OK;
-
-    // parse all information from package
-    for (const auto &xml : xmls) {
-        parseStatus = tryParse(xml, gHalManifestConverter, &afterUpdate);
-        if (parseStatus == ParseStatus::OK) {
-            continue; // work on next one
-        }
-        if (parseStatus != ParseStatus::PARSE_ERROR) {
-            appendLine(error, toString(parseStatus) + " manifest");
-            return ALREADY_EXISTS;
-        }
-        parseStatus = tryParse(xml, gCompatibilityMatrixConverter, &afterUpdate);
-        if (parseStatus == ParseStatus::OK) {
-            continue; // work on next one
-        }
-        if (parseStatus != ParseStatus::PARSE_ERROR) {
-            appendLine(error, toString(parseStatus) + " matrix");
-            return ALREADY_EXISTS;
-        }
-        appendLine(error, toString(parseStatus));  // parse error
-        return BAD_VALUE;
-    }
-
-    return afterUpdate.checkCompatibility(error, flags);
-}
-
 int32_t VintfObject::checkCompatibility(std::string* error, CheckFlags::Type flags) {
     status_t status = OK;
     // null checks for files and runtime info
@@ -601,15 +529,9 @@ int32_t VintfObject::checkCompatibility(std::string* error, CheckFlags::Type fla
         return INCOMPATIBLE;
     }
 
-    CheckFlags::Type runtimeInfoCheckFlags = flags;
-    if (!!getDeviceHalManifest()->kernel()) {
-        // Use kernel from incoming OTA package, but not on the device.
-        runtimeInfoCheckFlags = runtimeInfoCheckFlags.disableKernel();
-    }
-
     if (flags.isRuntimeInfoEnabled()) {
         if (!getRuntimeInfo()->checkCompatibility(*getFrameworkCompatibilityMatrix(), error,
-                                                  runtimeInfoCheckFlags)) {
+                                                  flags)) {
             if (error) {
                 error->insert(0,
                               "Runtime info and framework compatibility matrix are incompatible: ");
@@ -664,11 +586,6 @@ std::vector<std::string> dumpFileList() {
 }
 
 }  // namespace details
-
-int32_t VintfObject::CheckCompatibility(const std::vector<std::string>& xmls, std::string* error,
-                                        CheckFlags::Type flags) {
-    return GetInstance()->checkCompatibility(xmls, error, flags);
-}
 
 bool VintfObject::IsHalDeprecated(const MatrixHal& oldMatrixHal,
                                   const CompatibilityMatrix& targetMatrix,

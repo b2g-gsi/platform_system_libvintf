@@ -107,7 +107,17 @@ std::vector<const MatrixKernel*> KernelInfo::getMatchedKernelRequirements(
 
     if (kernelsForLevel.empty()) {
         if (error) {
-            *error = "No kernel entry found for kernel version " + to_string(mVersion.dropMinor());
+            std::stringstream ss;
+            ss << "No kernel entry found for kernel version " << mVersion.dropMinor()
+               << " at kernel FCM version "
+               << (kernelLevel == Level::UNSPECIFIED ? "unspecified" : to_string(kernelLevel))
+               << ". The following kernel requirements are checked:";
+            for (const MatrixKernel& matrixKernel : kernels) {
+                ss << "\n  Minimum LTS: " << matrixKernel.minLts()
+                   << ", kernel FCM version: " << matrixKernel.getSourceMatrixLevel()
+                   << (matrixKernel.conditions().empty() ? "" : ", with conditionals");
+            };
+            *error = ss.str();
         }
         return {};
     }
@@ -136,7 +146,7 @@ std::vector<const MatrixKernel*> KernelInfo::getMatchedKernelRequirements(
                 msg.mLevel = Level::R;
                 *error = "Kernel FCM version is not specified, but kernel version " +
                          to_string(mVersion) +
-                         " is found. Fix by specifying kernel FCM version in device manifest."
+                         " is found. Fix by specifying kernel FCM version in device manifest. "
                          "For example, for a *-r kernel:\n" +
                          gKernelInfoConverter(msg);
             }
@@ -213,7 +223,7 @@ std::vector<const MatrixKernel*> KernelInfo::getMatchedKernelVersionAndConfigs(
             for (const MatrixKernel* matrixKernel : kernels) {
                 ss << "\n  Minimum LTS: " << matrixKernel->minLts()
                    << ", kernel FCM version: " << matrixKernel->getSourceMatrixLevel()
-                   << (matrixKernel->conditions().empty() ? "\n" : ", with conditionals");
+                   << (matrixKernel->conditions().empty() ? "" : ", with conditionals");
             };
             *error = ss.str();
         }

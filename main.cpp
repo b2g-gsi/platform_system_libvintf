@@ -313,8 +313,8 @@ int main(int argc, char** argv) {
     }
 
     {
-        auto compatible = VintfObject::CheckCompatibility({}, &error);
-        std::cout << "VintfObject::CheckCompatibility?                         "
+        auto compatible = VintfObject::GetInstance()->checkCompatibility(&error);
+        std::cout << "VintfObject::checkCompatibility?                         "
                   << compatibleString(compatible);
         if (compatible != COMPATIBLE) std::cout << ", " << error;
         std::cout << std::endl;
