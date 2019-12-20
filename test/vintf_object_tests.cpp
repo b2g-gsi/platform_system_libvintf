@@ -509,11 +509,6 @@ class VintfObjectTestBase : public ::testing::Test {
             .WillRepeatedly(Return(::android::NAME_NOT_FOUND));
     }
 
-    // Access to private method.
-    int checkCompatibility(const std::vector<std::string>& xmls, std::string* error) {
-        return vintfObject->checkCompatibility(xmls, error);
-    }
-
     MockRuntimeInfoFactory& runtimeInfoFactory() {
         return static_cast<MockRuntimeInfoFactory&>(*vintfObject->getRuntimeInfoFactory());
     }
@@ -536,112 +531,16 @@ class VintfObjectCompatibleTest : public VintfObjectTestBase {
 // Tests that local info is checked.
 TEST_F(VintfObjectCompatibleTest, TestDeviceCompatibility) {
     std::string error;
-    std::vector<std::string> packageInfo;
 
     expectVendorManifest();
     expectSystemManifest();
     expectVendorMatrix();
     expectSystemMatrix();
 
-    int result = checkCompatibility(packageInfo, &error);
+    int result = vintfObject->checkCompatibility(&error);
 
     ASSERT_EQ(result, 0) << "Fail message:" << error.c_str();
     // Check that nothing was ignored.
-    ASSERT_STREQ(error.c_str(), "");
-}
-
-// Tests that input info is checked against device and passes.
-TEST_F(VintfObjectCompatibleTest, TestInputVsDeviceSuccess) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixXml1};
-
-    expectVendorManifest();
-    expectSystemManifest();
-    expectVendorMatrix();
-    expectSystemMatrix(0);
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, 0) << "Fail message:" << error.c_str();
-    ASSERT_STREQ(error.c_str(), "");
-}
-
-// Tests that input info is checked against device and fails.
-TEST_F(VintfObjectCompatibleTest, TestInputVsDeviceFail) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixXml2};
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, 1) << "Should have failed:" << error.c_str();
-    EXPECT_IN(
-        "Device manifest and framework compatibility matrix are incompatible: HALs "
-        "incompatible.",
-        error);
-    EXPECT_IN("android.hardware.foo", error);
-}
-
-// Tests that complementary info is checked against itself.
-TEST_F(VintfObjectCompatibleTest, TestInputSuccess) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixXml2, vendorManifestXml2};
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, 0) << "Failed message:" << error.c_str();
-    ASSERT_STREQ(error.c_str(), "");
-}
-
-TEST_F(VintfObjectCompatibleTest, TestFrameworkOnlyOta) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixXml1, systemManifestXml1};
-
-    expectVendorManifest();
-    expectSystemManifest(0);
-    expectVendorMatrix();
-    expectSystemMatrix(0);
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, 0) << "Fail message:" << error.c_str();
-    ASSERT_STREQ(error.c_str(), "");
-}
-
-TEST_F(VintfObjectCompatibleTest, TestFullOta) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixXml1, systemManifestXml1,
-            vendorMatrixXml1, vendorManifestXml1};
-
-    expectVendorManifest(0);
-    expectSystemManifest(0);
-    expectVendorMatrix(0);
-    expectSystemMatrix(0);
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, 0) << "Fail message:" << error.c_str();
-    ASSERT_STREQ(error.c_str(), "");
-}
-
-// Test that framework-only OTA fails when kernel is not compatible with incoming system.
-TEST_F(VintfObjectCompatibleTest, KernelInfoIncompatible) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixKernel318};
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, INCOMPATIBLE) << "Should have failed.";
-    EXPECT_IN("Framework is incompatible with kernel version 3.18.31", error);
-}
-
-// Test that full OTA is successful when the OTA package provides a compatible kernel.
-TEST_F(VintfObjectCompatibleTest, UpdateKernel) {
-    std::string error;
-    std::vector<std::string> packageInfo = {vendorManifestKernel318, systemMatrixKernel318};
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, COMPATIBLE) << "Fail message:" << error;
     ASSERT_STREQ(error.c_str(), "");
 }
 
@@ -659,32 +558,15 @@ class VintfObjectIncompatibleTest : public VintfObjectTestBase {
 // Fetch all metadata from device and ensure that it fails.
 TEST_F(VintfObjectIncompatibleTest, TestDeviceCompatibility) {
     std::string error;
-    std::vector<std::string> packageInfo;
 
     expectVendorManifest();
     expectSystemManifest();
     expectVendorMatrix();
     expectSystemMatrix();
 
-    int result = checkCompatibility(packageInfo, &error);
+    int result = vintfObject->checkCompatibility(&error);
 
     ASSERT_EQ(result, 1) << "Should have failed:" << error.c_str();
-}
-
-// Pass in new metadata that fixes the incompatibility.
-TEST_F(VintfObjectIncompatibleTest, TestInputVsDeviceSuccess) {
-    std::string error;
-    std::vector<std::string> packageInfo = {systemMatrixXml1};
-
-    expectVendorManifest();
-    expectSystemManifest();
-    expectVendorMatrix();
-    expectSystemMatrix(0);
-
-    int result = checkCompatibility(packageInfo, &error);
-
-    ASSERT_EQ(result, 0) << "Failed message:" << error.c_str();
-    ASSERT_STREQ(error.c_str(), "");
 }
 
 const std::string vendorManifestKernelFcm =
@@ -1399,7 +1281,18 @@ const static std::vector<std::string> systemMatrixKernelXmls = {
     "</compatibility-matrix>\n",
 };
 
-class KernelTest : public MultiMatrixTest {};
+class KernelTest : public MultiMatrixTest {
+   public:
+    void expectKernelFcmVersion(size_t targetFcm, Level kernelFcm) {
+        std::string xml = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
+                          to_string(static_cast<Level>(targetFcm)) + "\">\n";
+        if (kernelFcm != Level::UNSPECIFIED) {
+            xml += "    <kernel target-level=\"" + to_string(kernelFcm) + "\"/>\n";
+        }
+        xml += "</manifest>";
+        expectFetch(kVendorManifest, xml);
+    }
+};
 
 // Assume that we are developing level 2. Test that old <kernel> requirements should
 // not change and new <kernel> versions are added.
@@ -1439,19 +1332,44 @@ TEST_F(KernelTest, Level1AndMore) {
     EXPECT_IN(FAKE_KERNEL("4.0.0", "D3", 3), xml) << "\nShould see <kernel> from new matrices";
 }
 
+KernelInfo MakeKernelInfo(const std::string& version, const std::string& key) {
+    KernelInfo info;
+    CHECK(gKernelInfoConverter(&info,
+                               "    <kernel version=\"" + version + "\">\n"
+                               "        <config>\n"
+                               "            <key>CONFIG_" + key + "</key>\n"
+                               "            <value type=\"tristate\">y</value>\n"
+                               "        </config>\n"
+                               "    </kernel>\n"));
+    return info;
+}
+
+TEST_F(KernelTest, Compatible) {
+    setFakeProperties();
+    setupMockFetcher(vendorManifestXml1, systemMatrixXml1, systemManifestXml1, vendorMatrixXml1,
+                     productModel);
+
+    SetUpMockSystemMatrices({
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+        FAKE_KERNEL("1.0.0", "A1", 1)
+        FAKE_KERNEL("2.0.0", "B1", 1)
+        "    <sepolicy>\n"
+        "        <kernel-sepolicy-version>0</kernel-sepolicy-version>\n"
+        "        <sepolicy-version>0.0</sepolicy-version>\n"
+        "    </sepolicy>\n"
+        "</compatibility-matrix>\n"});
+    expectKernelFcmVersion(Level{1}, Level{1});
+    expectSystemManifest();
+    expectVendorMatrix();
+
+    auto info = MakeKernelInfo("1.0.0", "A1");
+    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo(info.version(), info.configs());
+    std::string error;
+    ASSERT_EQ(COMPATIBLE, vintfObject->checkCompatibility(&error)) << error;
+}
+
 class KernelTestP : public KernelTest, public WithParamInterface<
-    std::tuple<std::vector<std::string>, KernelInfo, Level, Level, bool>> {
-   public:
-    void expectKernelFcmVersion(size_t targetFcm, Level kernelFcm) {
-        std::string xml = "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
-                          to_string(static_cast<Level>(targetFcm)) + "\">\n";
-        if (kernelFcm != Level::UNSPECIFIED) {
-            xml += "    <kernel target-level=\"" + to_string(kernelFcm) + "\"/>\n";
-        }
-        xml += "</manifest>";
-        expectFetch(kVendorManifest, xml);
-    }
-};
+    std::tuple<std::vector<std::string>, KernelInfo, Level, Level, bool>> {};
 // Assume that we are developing level 2. Test that old <kernel> requirements should
 // not change and new <kernel> versions are added.
 TEST_P(KernelTestP, Test) {
@@ -1472,17 +1390,6 @@ TEST_P(KernelTestP, Test) {
             << (pass ? error : fallbackError);
 }
 
-KernelInfo MakeKernelInfo(const std::string& version, const std::string& key) {
-    KernelInfo info;
-    CHECK(gKernelInfoConverter(&info,
-                               "    <kernel version=\"" + version + "\">\n"
-                               "        <config>\n"
-                               "            <key>CONFIG_" + key + "</key>\n"
-                               "            <value type=\"tristate\">y</value>\n"
-                               "        </config>\n"
-                               "    </kernel>\n"));
-    return info;
-}
 
 std::vector<KernelTestP::ParamType> KernelTestParamValues() {
     std::vector<KernelTestP::ParamType> ret;
@@ -1593,20 +1500,7 @@ TEST_F(VintfObjectPartialUpdateTest, DeviceCompatibility) {
     expectVendorManifest();
 
     std::string error;
-    EXPECT_TRUE(checkCompatibility({}, &error)) << error;
-}
-
-TEST_F(VintfObjectPartialUpdateTest, VendorOnlyCompatible) {
-    setupMockFetcher("", "", systemManifestXml1, vendorMatrixXml1, productModel);
-    SetUpMockSystemMatrices(systemMatrixRequire);
-
-    expectSystemManifest();
-    expectVendorMatrix();
-    // Should not load vendor manifest from device
-    expectVendorManifest(0);
-
-    std::string error;
-    EXPECT_TRUE(checkCompatibility({vendorManifestRequire2}, &error)) << error;
+    EXPECT_TRUE(vintfObject->checkCompatibility(&error)) << error;
 }
 
 const std::string systemEtcManifest =

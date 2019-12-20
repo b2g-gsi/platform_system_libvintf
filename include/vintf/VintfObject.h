@@ -128,8 +128,7 @@ class VintfObject {
         bool skipCache = false, RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
 
     /**
-     * Check compatibility, given a set of manifests / matrices in packageInfo.
-     * They will be checked against the manifests / matrices on the device.
+     * Check compatibility on the device.
      *
      * @param error error message
      * @param flags flags to disable certain checks. See CheckFlags.
@@ -266,23 +265,6 @@ class VintfObject {
         bool skipCache = false, RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
 
     /**
-     * Check compatibility, given a set of manifests / matrices in packageInfo.
-     * They will be checked against the manifests / matrices on the device.
-     *
-     * @param packageInfo a list of XMLs of HalManifest /
-     * CompatibilityMatrix objects.
-     * @param error error message
-     * @param flags flags to disable certain checks. See CheckFlags.
-     *
-     * @return = 0 if success (compatible)
-     *         > 0 if incompatible
-     *         < 0 if any error (mount partition fails, illformed XML, etc.)
-     */
-    static int32_t CheckCompatibility(const std::vector<std::string>& packageInfo,
-                                      std::string* error = nullptr,
-                                      CheckFlags::Type flags = CheckFlags::DEFAULT);
-
-    /**
      * Check deprecation on framework matrices with a provided predicate.
      *
      * @param listInstances predicate that takes parameter in this format:
@@ -324,10 +306,6 @@ class VintfObject {
     status_t fetchOneHalManifest(const std::string& path, HalManifest* out,
                                  std::string* error = nullptr);
     status_t fetchFrameworkHalManifest(HalManifest* out, std::string* error = nullptr);
-    // Helper to CheckCompatibility with dependency injection.
-    int32_t checkCompatibility(const std::vector<std::string>& packageInfo,
-                               std::string* error = nullptr,
-                               CheckFlags::Type flags = CheckFlags::DEFAULT);
 
     static bool IsHalDeprecated(const MatrixHal& oldMatrixHal,
                                 const CompatibilityMatrix& targetMatrix,

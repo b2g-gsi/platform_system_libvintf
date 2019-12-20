@@ -347,7 +347,7 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix& mat, std::string
             return false;
         }
 
-        if (flags.isKernelEnabled() && !!kernel() &&
+        if (flags.isKernelEnabled() && shouldCheckKernelCompatibility() &&
             kernel()
                 ->getMatchedKernelRequirements(mat.framework.mKernels, kernel()->level(), error)
                 .empty()) {
@@ -356,6 +356,10 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix& mat, std::string
     }
 
     return true;
+}
+
+bool HalManifest::shouldCheckKernelCompatibility() const {
+    return kernel().has_value() && kernel()->version() != KernelVersion{};
 }
 
 CompatibilityMatrix HalManifest::generateCompatibleMatrix() const {

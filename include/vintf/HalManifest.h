@@ -198,6 +198,10 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // Merge information of other to this.
     bool mergeKernel(std::optional<KernelInfo>* other, std::string* error = nullptr);
 
+    // Whether the manifest contains information about the kernel for compatibility checks.
+    // True if kernel()->checkCompatibility can be called.
+    bool shouldCheckKernelCompatibility() const;
+
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;
 
