@@ -59,7 +59,7 @@ class HostFileSystem : public details::FileSystemImpl {
                    std::string* error) const override {
         auto resolved = resolve(path);
         if (resolved.empty()) {
-            std::cerr << "Error: Cannot resolve path " << path;
+            std::cerr << "Error: Cannot resolve path " << path << std::endl;
             return UNKNOWN_ERROR;
         }
         status_t status = details::FileSystemImpl::fetch(resolved, fetched, error);
@@ -70,7 +70,7 @@ class HostFileSystem : public details::FileSystemImpl {
                        std::string* error) const override {
         auto resolved = resolve(path);
         if (resolved.empty()) {
-            std::cerr << "Error: Cannot resolve path " << path;
+            std::cerr << "Error: Cannot resolve path " << path << std::endl;
             return UNKNOWN_ERROR;
         }
         status_t status = details::FileSystemImpl::listFiles(resolved, out, error);
