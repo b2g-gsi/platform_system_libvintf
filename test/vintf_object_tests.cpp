@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include <android-base/logging.h>
-#include <android-base/strings.h>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <stdio.h>
 #include <unistd.h>
 
+#include <android-base/file.h>
+#include <android-base/logging.h>
 #include <android-base/strings.h>
 #include <hidl-util/FQName.h>
 
@@ -32,6 +31,7 @@
 #include "utils-fake.h"
 
 using namespace ::testing;
+using namespace std::literals;
 
 using android::FqInstance;
 
@@ -541,9 +541,6 @@ class VintfObjectRuntimeInfoTest : public VintfObjectTestBase {
         Mock::VerifyAndClear(&runtimeInfoFactory());
         Mock::VerifyAndClear(runtimeInfoFactory().getInfo().get());
     }
-    Level getKernelLevel(const RuntimeInfo* rf) {
-        return rf->kernelLevel();
-    }
 };
 
 TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
@@ -578,10 +575,7 @@ TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
 }
 
 TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfoKernelFcm) {
-    auto rf = vintfObject->getRuntimeInfo(false /* skipCache */,
-                                          RuntimeInfo::FetchFlag::KERNEL_FCM);
-    ASSERT_NE(nullptr, rf);
-    ASSERT_EQ(Level{92}, getKernelLevel(rf.get()));
+    ASSERT_EQ(Level{92}, vintfObject->getKernelLevel());
 }
 
 // Test fixture that provides incompatible metadata from the mock device.
@@ -622,6 +616,11 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
                 "compatibility_matrix.1.xml",
                 "compatibility_matrix.empty.xml",
             };
+            return ::android::OK;
+        }));
+    EXPECT_CALL(fetcher(), listFiles(StrEq(kProductVintfDir), _, _))
+        .WillRepeatedly(Invoke([](const auto&, auto* out, auto*) {
+            *out = {android::base::Basename(kProductMatrix)};
             return ::android::OK;
         }));
     expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml",
@@ -989,7 +988,10 @@ class MultiMatrixTest : public VintfObjectTestBase {
         return "compatibility_matrix." + std::to_string(static_cast<Level>(i)) + ".xml";
     }
     void SetUpMockSystemMatrices(const std::vector<std::string>& xmls) {
-        EXPECT_CALL(fetcher(), listFiles(StrEq(kSystemVintfDir), _, _))
+        SetUpMockMatrices(kSystemVintfDir, xmls);
+    }
+    void SetUpMockMatrices(const std::string& dir, const std::vector<std::string>& xmls) {
+        EXPECT_CALL(fetcher(), listFiles(StrEq(dir), _, _))
             .WillRepeatedly(Invoke([=](const auto&, auto* out, auto*) {
                 size_t i = 1;
                 for (const auto& content : xmls) {
@@ -1001,12 +1003,9 @@ class MultiMatrixTest : public VintfObjectTestBase {
             }));
         size_t i = 1;
         for (const auto& content : xmls) {
-            expectFetchRepeatedly(kSystemVintfDir + getFileName(i), content);
+            expectFetchRepeatedly(dir + getFileName(i), content);
             ++i;
         }
-        expectFileNotExist(kProductMatrix);
-        expectNeverFetch(kSystemLegacyMatrix);
-        expectFileNotExist(StartsWith("/odm/"));
     }
     void expectTargetFcmVersion(size_t level) {
         expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
@@ -1313,6 +1312,16 @@ TEST_F(KernelTest, Compatible) {
     ASSERT_EQ(COMPATIBLE, vintfObject->checkCompatibility(&error)) << error;
 }
 
+TEST_F(KernelTest, Level) {
+    expectKernelFcmVersion(1, Level{10});
+    EXPECT_EQ(Level{10}, vintfObject->getKernelLevel());
+}
+
+TEST_F(KernelTest, LevelUnspecified) {
+    expectKernelFcmVersion(1, Level::UNSPECIFIED);
+    EXPECT_EQ(Level::UNSPECIFIED, vintfObject->getKernelLevel());
+}
+
 class KernelTestP : public KernelTest, public WithParamInterface<
     std::tuple<std::vector<std::string>, KernelInfo, Level, Level, bool>> {};
 // Assume that we are developing level 2. Test that old <kernel> requirements should
@@ -1574,80 +1583,99 @@ TEST_P(FrameworkManifestTest, Existence) {
 INSTANTIATE_TEST_SUITE_P(Vintf, FrameworkManifestTest,
                          ::testing::Combine(Bool(), Bool(), Bool(), Bool()));
 
-class GetCompatibleKernelRequirementTest : public MultiMatrixTest {
+
+//
+// Set of OEM FCM matrices at different FCM version.
+//
+
+std::vector<std::string> GetOemFcmMatrixLevels(const std::string& name) {
+    return {
+        // 1.xml
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>vendor.foo." + name + "</name>\n"
+        "        <version>1.0</version>\n"
+        "        <interface>\n"
+        "            <name>IExtra</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n",
+        // 2.xml
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>vendor.foo." + name + "</name>\n"
+        "        <version>2.0</version>\n"
+        "        <interface>\n"
+        "            <name>IExtra</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n",
+    };
+}
+
+class OemFcmLevelTest : public MultiMatrixTest,
+                        public WithParamInterface<std::tuple<size_t, bool, bool>> {
    protected:
-    void SetUp() override {
+    virtual void SetUp() override {
         MultiMatrixTest::SetUp();
-        SetUpMockSystemMatrices(systemMatrixKernelXmls);
-        expectTargetFcmVersion(1);
+        SetUpMockSystemMatrices({systemMatrixLevel1, systemMatrixLevel2});
+    }
+    using Instances = std::set<std::string>;
+    Instances GetInstances(const CompatibilityMatrix* fcm) {
+        Instances instances;
+        fcm->forEachHidlInstance([&instances](const auto& matrixInstance) {
+            instances.insert(matrixInstance.description(matrixInstance.versionRange().minVer()));
+            return true; // continue
+        });
+        return instances;
     }
 };
 
-TEST_F(GetCompatibleKernelRequirementTest, Version1) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 1}, {{"CONFIG_A1", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(1u, kreq->level());
-    EXPECT_EQ(KernelVersion(1, 0, 0), kreq->minLts());
+TEST_P(OemFcmLevelTest, Test) {
+    auto&& [level, hasProduct, hasSystemExt] = GetParam();
+
+    expectTargetFcmVersion(level);
+    if (hasProduct) {
+        SetUpMockMatrices(kProductVintfDir, GetOemFcmMatrixLevels("product"));
+    }
+    if (hasSystemExt) {
+        SetUpMockMatrices(kSystemExtVintfDir, GetOemFcmMatrixLevels("systemext"));
+    }
+
+    auto fcm = vintfObject->getFrameworkCompatibilityMatrix();
+    ASSERT_NE(nullptr, fcm);
+    auto instances = GetInstances(fcm.get());
+
+    auto containsOrNot = [](bool contains, const std::string& e) {
+        return contains ? SafeMatcherCast<Instances>(Contains(e))
+                        : SafeMatcherCast<Instances>(Not(Contains(e)));
+    };
+
+    EXPECT_THAT(instances, containsOrNot(level == 1,
+                                         "android.hardware.major@1.0::IMajor/default"));
+    EXPECT_THAT(instances, containsOrNot(level == 1 && hasProduct,
+                                         "vendor.foo.product@1.0::IExtra/default"));
+    EXPECT_THAT(instances, containsOrNot(level == 1 && hasSystemExt,
+                                         "vendor.foo.systemext@1.0::IExtra/default"));
+    EXPECT_THAT(instances, Contains("android.hardware.major@2.0::IMajor/default"));
+    EXPECT_THAT(instances, containsOrNot(hasProduct,
+                                         "vendor.foo.product@2.0::IExtra/default"));
+    EXPECT_THAT(instances, containsOrNot(hasSystemExt,
+                                         "vendor.foo.systemext@2.0::IExtra/default"));
 }
 
-TEST_F(GetCompatibleKernelRequirementTest, Version1Incompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 0}, {});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    EXPECT_FALSE(kreq.has_value())
-        << "Should be incompatible because CONFIG_A1 is missing, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
+static std::string OemFcmLevelTestParamToString(
+        const TestParamInfo<OemFcmLevelTest::ParamType>& info) {
+    auto&& [level, hasProduct, hasSystemExt] = info.param;
+    auto name = "Level" + std::to_string(level);
+    name += "With"s + (hasProduct ? "" : "out") + "Product";
+    name += "With"s + (hasSystemExt ? "" : "out") + "SystemExt";
+    return name;
 }
-
-TEST_F(GetCompatibleKernelRequirementTest, Version2) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 1}, {{"CONFIG_B1", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(1u, kreq->level());
-    EXPECT_EQ(KernelVersion(2, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, Version2FutureConfigIncompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 0}, {{"CONFIG_B2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    EXPECT_FALSE(kreq.has_value())
-        << "CONFIG_B2 is from 2.xml and should not be compatible, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrix) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({3, 0, 1}, {{"CONFIG_C2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(2u, kreq->level()) << "Should get 3.0.0 from 2.xml because 1.xml doesn't have 3.0.x";
-    EXPECT_EQ(KernelVersion(3, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromOldestMatrixPossible) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 1}, {{"CONFIG_D2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(2u, kreq->level()) << "Should get 4.0.0 from 2.xml even though it exists in 3.xml";
-    EXPECT_EQ(KernelVersion(4, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrixIncompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 0}, {{"CONFIG_D3", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_FALSE(kreq.has_value())
-        << "CONFIG_D3 is from 3.xml and should not be compatible, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromEvenNewerMatrix) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({5, 0, 1}, {{"CONFIG_E3", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(3u, kreq->level())
-        << "Should get 5.0.0 from 3.xml because neither 1.xml nor 2.xml has 5.0.x";
-    EXPECT_EQ(KernelVersion(5, 0, 0), kreq->minLts());
-}
-
+INSTANTIATE_TEST_SUITE_P(OemFcmLevel, OemFcmLevelTest, Combine(Values(1, 2), Bool(), Bool()),
+    OemFcmLevelTestParamToString);
 // clang-format on
 
 }  // namespace testing

@@ -80,10 +80,6 @@ struct RuntimeInfo {
     bool checkCompatibility(const CompatibilityMatrix& mat, std::string* error = nullptr,
                             CheckFlags::Type flags = CheckFlags::DEFAULT) const;
 
-    // Returns kernel FCM version. This is similar to
-    // VintfObject::GetDeviceHalManifest()->kernel()->level(), but is public and has proper null /
-    // nullopt checks.
-    Level kernelLevel() const;
 
     using FetchFlags = uint32_t;
     enum FetchFlag : FetchFlags {
@@ -103,6 +99,7 @@ struct RuntimeInfo {
     virtual status_t fetchAllInformation(FetchFlags flags);
 
     void setKernelLevel(Level level);
+    Level kernelLevel() const;
 
     friend struct RuntimeInfoFetcher;
     friend class VintfObject;

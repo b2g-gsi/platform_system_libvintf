@@ -23,6 +23,7 @@
 #include <mutex>
 
 #include <android-base/logging.h>
+#include <android-base/strings.h>
 
 #include "CompatibilityMatrix.h"
 #include "parse_string.h"
@@ -401,43 +402,49 @@ status_t VintfObject::getOneMatrix(const std::string& path, Named<CompatibilityM
 
 status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<Named<CompatibilityMatrix>>* results,
                                                   std::string* error) {
-    std::vector<std::string> fileNames;
-
-    status_t listStatus = getFileSystem()->listFiles(kSystemVintfDir, &fileNames, error);
-    if (listStatus != OK) {
-        return listStatus;
-    }
-    for (const std::string& fileName : fileNames) {
-        std::string path = kSystemVintfDir + fileName;
-        Named<CompatibilityMatrix> namedMatrix;
-        std::string matrixError;
-        status_t matrixStatus = getOneMatrix(path, &namedMatrix, &matrixError);
-        if (matrixStatus != OK) {
-            // System manifests and matrices share the same dir. Client may not have enough
-            // permissions to read system manifests, or may not be able to parse it.
-            auto logLevel = matrixStatus == BAD_VALUE ? base::DEBUG : base::ERROR;
-            LOG(logLevel) << "Framework Matrix: Ignore file " << path << ": " << matrixError;
+    std::vector<std::string> dirs = {
+        kSystemVintfDir,
+        kSystemExtVintfDir,
+        kProductVintfDir,
+    };
+    for (const auto& dir : dirs) {
+        std::vector<std::string> fileNames;
+        status_t listStatus = getFileSystem()->listFiles(dir, &fileNames, error);
+        if (listStatus == NAME_NOT_FOUND) {
             continue;
         }
-        results->emplace_back(std::move(namedMatrix));
-    }
+        if (listStatus != OK) {
+            return listStatus;
+        }
+        for (const std::string& fileName : fileNames) {
+            std::string path = dir + fileName;
+            Named<CompatibilityMatrix> namedMatrix;
+            std::string matrixError;
+            status_t matrixStatus = getOneMatrix(path, &namedMatrix, &matrixError);
+            if (matrixStatus != OK) {
+                // Manifests and matrices share the same dir. Client may not have enough
+                // permissions to read system manifests, or may not be able to parse it.
+                auto logLevel = matrixStatus == BAD_VALUE ? base::DEBUG : base::ERROR;
+                LOG(logLevel) << "Framework Matrix: Ignore file " << path << ": " << matrixError;
+                continue;
+            }
+            results->emplace_back(std::move(namedMatrix));
+        }
 
-    Named<CompatibilityMatrix> productMatrix;
-    std::string productError;
-    status_t productStatus = getOneMatrix(kProductMatrix, &productMatrix, &productError);
-    if (productStatus == OK) {
-        results->emplace_back(std::move(productMatrix));
-    } else if (productStatus == NAME_NOT_FOUND) {
-        LOG(DEBUG) << "Framework Matrix: missing " << kProductMatrix;
-    } else {
-        if (error) *error = std::move(productError);
-        return productStatus;
+        if (dir == kSystemVintfDir && results->empty()) {
+            if (error) {
+                *error = "No framework matrices under " + dir + " can be fetched or parsed.\n";
+            }
+            return NAME_NOT_FOUND;
+        }
     }
 
     if (results->empty()) {
         if (error) {
             *error =
-                "No framework matrices under " + kSystemVintfDir + " can be fetched or parsed.\n";
+                "No framework matrices can be fetched or parsed. "
+                "The following directories are searched:\n  " +
+                android::base::Join(dirs, "\n  ");
         }
         return NAME_NOT_FOUND;
     }
@@ -549,6 +556,7 @@ const std::string kSystemVintfDir = "/system/etc/vintf/";
 const std::string kVendorVintfDir = "/vendor/etc/vintf/";
 const std::string kOdmVintfDir = "/odm/etc/vintf/";
 const std::string kProductVintfDir = "/product/etc/vintf/";
+const std::string kSystemExtVintfDir = "/system_ext/etc/vintf";
 
 const std::string kVendorManifest = kVendorVintfDir + "manifest.xml";
 const std::string kSystemManifest = kSystemVintfDir + "manifest.xml";
@@ -576,6 +584,7 @@ std::vector<std::string> dumpFileList() {
         kVendorVintfDir,
         kOdmVintfDir,
         kProductVintfDir,
+        kSystemExtVintfDir,
         kOdmLegacyVintfDir,
         kVendorLegacyManifest,
         kVendorLegacyMatrix,
@@ -742,34 +751,17 @@ int32_t VintfObject::checkDeprecation(std::string* error) {
     return checkDeprecation(inManifest, error);
 }
 
-std::optional<KernelRequirement> VintfObject::getCompatibleKernelRequirement(std::string* error) {
-    auto matrix = getFrameworkCompatibilityMatrix();
-    if (!matrix) {
-        if (error) *error = "Cannot retrieve framework compatibility matrix";
-        return std::nullopt;
+Level VintfObject::getKernelLevel(std::string* error) {
+    auto manifest = getDeviceHalManifest();
+    if (!manifest) {
+        if (error) *error = "Cannot retrieve device manifest.";
+        return Level::UNSPECIFIED;
     }
-    auto runtime_info = getRuntimeInfo();
-    if (!runtime_info) {
-        if (error) *error = "Cannot retrieve runtime information";
-        return std::nullopt;
+    if (manifest->kernel().has_value() && manifest->kernel()->level() != Level::UNSPECIFIED) {
+        return manifest->kernel()->level();
     }
-    auto reqs = runtime_info->mKernel.getMatchedKernelRequirements(
-        matrix->framework.mKernels, runtime_info->kernelLevel(), error);
-    if (reqs.empty()) {
-        if (error) error->insert(0, "Cannot find any matched kernel requirements: ");
-        return std::nullopt;
-    }
-    for (const MatrixKernel* matrixKernel : reqs) {
-        if (matrixKernel->conditions().empty()) {
-            return KernelRequirement(matrixKernel->minLts(),
-                                     matrix->getSourceMatrixLevel(matrixKernel));
-        }
-    }
-    KernelRequirement ret(reqs[0]->minLts(), matrix->getSourceMatrixLevel(reqs[0]));
-    LOG(ERROR) << "Cannot find kernel requirement with empty conditions; "
-               << "this should not happen. Returning (" << ret.minLts() << ", " << ret.level()
-               << ") as a heuristic.";
-    return ret;
+    if (error) *error = "Device manifest does not specify kernel FCM version.";
+    return Level::UNSPECIFIED;
 }
 
 const std::unique_ptr<FileSystem>& VintfObject::getFileSystem() {

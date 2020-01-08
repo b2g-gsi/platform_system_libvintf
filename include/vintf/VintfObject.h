@@ -24,7 +24,7 @@
 #include "CompatibilityMatrix.h"
 #include "FileSystem.h"
 #include "HalManifest.h"
-#include "KernelRequirement.h"
+#include "Level.h"
 #include "Named.h"
 #include "ObjectFactory.h"
 #include "PropertyFetcher.h"
@@ -178,10 +178,11 @@ class VintfObject {
     int32_t checkDeprecation(std::string* error = nullptr);
 
     /**
-     * Get requirements of the kernel (expressed in the framework compatibility matrix) that the
-     * running kernel is compatible with.
+     * Return kernel FCM version.
+     *
+     * If any error, UNSPECIFIED is returned, and error is set to an error message.
      */
-    std::optional<KernelRequirement> getCompatibleKernelRequirement(std::string* error = nullptr);
+    Level getKernelLevel(std::string* error = nullptr);
 
    private:
     std::unique_ptr<FileSystem> mFileSystem;
@@ -353,6 +354,7 @@ extern const std::string kSystemVintfDir;
 extern const std::string kVendorVintfDir;
 extern const std::string kOdmVintfDir;
 extern const std::string kProductVintfDir;
+extern const std::string kSystemExtVintfDir;
 extern const std::string kOdmLegacyVintfDir;
 extern const std::string kOdmLegacyManifest;
 extern const std::string kVendorManifest;
