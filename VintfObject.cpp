@@ -556,7 +556,7 @@ const std::string kSystemVintfDir = "/system/etc/vintf/";
 const std::string kVendorVintfDir = "/vendor/etc/vintf/";
 const std::string kOdmVintfDir = "/odm/etc/vintf/";
 const std::string kProductVintfDir = "/product/etc/vintf/";
-const std::string kSystemExtVintfDir = "/system_ext/etc/vintf";
+const std::string kSystemExtVintfDir = "/system_ext/etc/vintf/";
 
 const std::string kVendorManifest = kVendorVintfDir + "manifest.xml";
 const std::string kSystemManifest = kSystemVintfDir + "manifest.xml";

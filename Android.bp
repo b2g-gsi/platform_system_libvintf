@@ -112,6 +112,7 @@ cc_binary_host {
     static_libs: [
         "libbase",
         "libhidl-gen-utils",
+        "liblog",
         "libvintf",
         "libutils",
         "libtinyxml2",
