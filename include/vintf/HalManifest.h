@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "CheckFlags.h"
 #include "FileSystem.h"
 #include "HalGroup.h"
 #include "KernelInfo.h"
@@ -74,7 +75,8 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // - device manifest vs. framework compat-mat
     //     - checkIncompatibility for HALs returns only optional HALs
     //     - manifest.sepolicy.version match one of compat-mat.sepolicy.sepolicy-version
-    bool checkCompatibility(const CompatibilityMatrix &mat, std::string *error = nullptr) const;
+    bool checkCompatibility(const CompatibilityMatrix& mat, std::string* error = nullptr,
+                            CheckFlags::Type flags = CheckFlags::DEFAULT) const;
 
     // Generate a compatibility matrix such that checkCompatibility will return true.
     CompatibilityMatrix generateCompatibleMatrix() const;
@@ -115,6 +117,8 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // Alternative to forEachInstance if you just need a set of instance names instead.
     std::set<std::string> getHidlInstances(const std::string& package, const Version& version,
                                            const std::string& interfaceName) const;
+    std::set<std::string> getAidlInstances(const std::string& package,
+                                           const std::string& interfaceName) const;
 
     // Return whether instance is in getHidlInstances(...).
     bool hasHidlInstance(const std::string& package, const Version& version,
@@ -129,9 +133,6 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // Return whether this operation is successful.
     bool insertInstance(const FqInstance& fqInstance, Transport transport, Arch arch, HalFormat fmt,
                         std::string* error = nullptr);
-
-    // Get the <kernel> tag. Assumes type() == DEVICE.
-    const std::optional<KernelInfo>& kernel() const;
 
     // Add everything from another manifest. If no errors (return true), it is guaranteed
     // that other->empty() == true after execution.
@@ -187,6 +188,19 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
     // Return whether instance is in getInstances(...).
     bool hasInstance(HalFormat format, const std::string& package, const Version& version,
                      const std::string& interfaceName, const std::string& instance) const;
+
+    // Get the <kernel> tag. Assumes type() == DEVICE.
+    // - On host, <kernel> tag only exists for the fully assembled HAL manifest.
+    // - On device, this only contain information about level(). Other information should be
+    //   looked up via RuntimeInfo.
+    const std::optional<KernelInfo>& kernel() const;
+
+    // Merge information of other to this.
+    bool mergeKernel(std::optional<KernelInfo>* other, std::string* error = nullptr);
+
+    // Whether the manifest contains information about the kernel for compatibility checks.
+    // True if kernel()->checkCompatibility can be called.
+    bool shouldCheckKernelCompatibility() const;
 
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;

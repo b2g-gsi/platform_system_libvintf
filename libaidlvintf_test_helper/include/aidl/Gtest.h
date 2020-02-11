@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,27 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include "MatrixKernel.h"
+#include <gtest/gtest.h>
 
 namespace android {
-namespace vintf {
 
-bool MatrixKernel::operator==(const MatrixKernel &other) const {
-    if (mMinLts != other.mMinLts)
-        return false;
-    if (mConfigs != other.mConfigs)
-        return false;
-    return true;
+static inline std::string PrintInstanceNameToString(
+    const testing::TestParamInfo<std::string>& info) {
+    // test names need to be unique -> index prefix
+    std::string name = std::to_string(info.index) + "/" + info.param;
+
+    for (size_t i = 0; i < name.size(); i++) {
+        // gtest test names must only contain alphanumeric characters
+        if (!std::isalnum(name[i])) name[i] = '_';
+    }
+
+    return name;
 }
 
-void MatrixKernel::setSourceMatrixLevel(Level level) {
-    mSourceMatrixLevel = level;
-}
-
-Level MatrixKernel::getSourceMatrixLevel() const {
-    return mSourceMatrixLevel;
-}
-
-} // namespace vintf
-} // namespace android
+}  // namespace android

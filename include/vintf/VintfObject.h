@@ -24,7 +24,7 @@
 #include "CompatibilityMatrix.h"
 #include "FileSystem.h"
 #include "HalManifest.h"
-#include "KernelRequirement.h"
+#include "Level.h"
 #include "Named.h"
 #include "ObjectFactory.h"
 #include "PropertyFetcher.h"
@@ -128,8 +128,7 @@ class VintfObject {
         bool skipCache = false, RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
 
     /**
-     * Check compatibility, given a set of manifests / matrices in packageInfo.
-     * They will be checked against the manifests / matrices on the device.
+     * Check compatibility on the device.
      *
      * @param error error message
      * @param flags flags to disable certain checks. See CheckFlags.
@@ -179,10 +178,11 @@ class VintfObject {
     int32_t checkDeprecation(std::string* error = nullptr);
 
     /**
-     * Get requirements of the kernel (expressed in the framework compatibility matrix) that the
-     * running kernel is compatible with.
+     * Return kernel FCM version.
+     *
+     * If any error, UNSPECIFIED is returned, and error is set to an error message.
      */
-    std::optional<KernelRequirement> getCompatibleKernelRequirement(std::string* error = nullptr);
+    Level getKernelLevel(std::string* error = nullptr);
 
    private:
     std::unique_ptr<FileSystem> mFileSystem;
@@ -202,7 +202,6 @@ class VintfObject {
     details::LockedRuntimeInfoCache mDeviceRuntimeInfo;
 
     // Expose functions for testing and recovery
-    friend class VintfObjectRecovery;
     friend class testing::VintfObjectTestBase;
     friend class testing::VintfObjectRuntimeInfoTest;
     friend class testing::VintfObjectCompatibleTest;
@@ -267,23 +266,6 @@ class VintfObject {
         bool skipCache = false, RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
 
     /**
-     * Check compatibility, given a set of manifests / matrices in packageInfo.
-     * They will be checked against the manifests / matrices on the device.
-     *
-     * @param packageInfo a list of XMLs of HalManifest /
-     * CompatibilityMatrix objects.
-     * @param error error message
-     * @param flags flags to disable certain checks. See CheckFlags.
-     *
-     * @return = 0 if success (compatible)
-     *         > 0 if incompatible
-     *         < 0 if any error (mount partition fails, illformed XML, etc.)
-     */
-    static int32_t CheckCompatibility(const std::vector<std::string>& packageInfo,
-                                      std::string* error = nullptr,
-                                      CheckFlags::Type flags = CheckFlags::DEFAULT);
-
-    /**
      * Check deprecation on framework matrices with a provided predicate.
      *
      * @param listInstances predicate that takes parameter in this format:
@@ -325,10 +307,6 @@ class VintfObject {
     status_t fetchOneHalManifest(const std::string& path, HalManifest* out,
                                  std::string* error = nullptr);
     status_t fetchFrameworkHalManifest(HalManifest* out, std::string* error = nullptr);
-    // Helper to CheckCompatibility with dependency injection.
-    int32_t checkCompatibility(const std::vector<std::string>& packageInfo,
-                               std::string* error = nullptr,
-                               CheckFlags::Type flags = CheckFlags::DEFAULT);
 
     static bool IsHalDeprecated(const MatrixHal& oldMatrixHal,
                                 const CompatibilityMatrix& targetMatrix,
@@ -376,6 +354,7 @@ extern const std::string kSystemVintfDir;
 extern const std::string kVendorVintfDir;
 extern const std::string kOdmVintfDir;
 extern const std::string kProductVintfDir;
+extern const std::string kSystemExtVintfDir;
 extern const std::string kOdmLegacyVintfDir;
 extern const std::string kOdmLegacyManifest;
 extern const std::string kVendorManifest;

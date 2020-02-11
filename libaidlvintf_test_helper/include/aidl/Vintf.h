@@ -13,25 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #pragma once
 
-#include "Level.h"
-#include "Version.h"
+#include <utils/String16.h>
+
+#include <vector>
 
 namespace android {
-namespace vintf {
 
-// An object that represents kernel requirement information that VintfObject exposes.
-struct KernelRequirement {
-    KernelRequirement(KernelVersion minLts, Level level) : mMinLts(minLts), mLevel(level) {}
-    inline const KernelVersion& minLts() const { return mMinLts; }
-    inline Level level() const { return mLevel; }
+std::vector<std::string> getAidlHalInstanceNames(const std::string& descriptor);
+std::vector<std::string> getAidlHalInstanceNames(const String16& descriptor);
 
-   private:
-    KernelVersion mMinLts;
-    Level mLevel;
-};
-
-}  // namespace vintf
 }  // namespace android

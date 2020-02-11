@@ -103,9 +103,6 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>, public XmlFileGroup<Mat
     // Similar to addAllHalsAsOptional but on <xmlfile> entries.
     bool addAllXmlFilesAsOptional(CompatibilityMatrix* other, std::string* error);
 
-    // Similar to addAllHalsAsOptional but on <kernel> entries.
-    bool addAllKernelsAsOptional(CompatibilityMatrix* other, std::string* error);
-
     // Combine a set of framework compatibility matrices. For each CompatibilityMatrix in matrices
     // (in the order of level(), where UNSPECIFIED (empty) is treated as deviceLevel)
     // - If level() < deviceLevel, ignore
