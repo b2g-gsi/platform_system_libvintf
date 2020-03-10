@@ -291,8 +291,6 @@ class VintfObject {
     static int32_t CheckDeprecation(std::string* error = nullptr);
 
    private:
-    static details::LockedSharedPtr<VintfObject> sInstance;
-
     status_t getCombinedFrameworkMatrix(const std::shared_ptr<const HalManifest>& deviceManifest,
                                         CompatibilityMatrix* out, std::string* error = nullptr);
     status_t getAllFrameworkMatrixLevels(std::vector<Named<CompatibilityMatrix>>* out,
