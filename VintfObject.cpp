@@ -82,8 +82,8 @@ static std::unique_ptr<PropertyFetcher> createDefaultPropertyFetcher() {
     return propertyFetcher;
 }
 
-details::LockedSharedPtr<VintfObject> VintfObject::sInstance{};
 std::shared_ptr<VintfObject> VintfObject::GetInstance() {
+    static details::LockedSharedPtr<VintfObject> sInstance{};
     std::unique_lock<std::mutex> lock(sInstance.mutex);
     if (sInstance.object == nullptr) {
         sInstance.object = std::shared_ptr<VintfObject>(VintfObject::Builder().build().release());
