@@ -227,20 +227,22 @@ status_t VintfObject::addDirectoryManifests(const std::string& directory, HalMan
 }
 
 // Priority for loading vendor manifest:
-// 1. /vendor/etc/vintf/manifest.xml + device fragments + ODM manifest (optional) + odm fragments
-// 2. /vendor/etc/vintf/manifest.xml + device fragments
+// 1. Vendor manifest + device fragments + ODM manifest (optional) + odm fragments
+// 2. Vendor manifest + device fragments
 // 3. ODM manifest (optional) + odm fragments
 // 4. /vendor/manifest.xml (legacy, no fragments)
 // where:
 // A + B means unioning <hal> tags from A and B. If B declares an override, then this takes priority
 // over A.
 status_t VintfObject::fetchDeviceHalManifest(HalManifest* out, std::string* error) {
-    status_t vendorStatus = fetchOneHalManifest(kVendorManifest, out, error);
+    HalManifest vendorManifest;
+    status_t vendorStatus = fetchVendorHalManifest(&vendorManifest, error);
     if (vendorStatus != OK && vendorStatus != NAME_NOT_FOUND) {
         return vendorStatus;
     }
 
     if (vendorStatus == OK) {
+        *out = std::move(vendorManifest);
         status_t fragmentStatus = addDirectoryManifests(kVendorManifestFragmentDir, out, error);
         if (fragmentStatus != OK) {
             return fragmentStatus;
@@ -273,6 +275,33 @@ status_t VintfObject::fetchDeviceHalManifest(HalManifest* out, std::string* erro
 
     // Use legacy /vendor/manifest.xml
     return out->fetchAllInformation(getFileSystem().get(), kVendorLegacyManifest, error);
+}
+
+// Priority:
+// 1. if {vendorSku} is defined, /vendor/etc/vintf/manifest_{vendorSku}.xml
+// 2. /vendor/etc/vintf/manifest.xml
+// where:
+// {vendorSku} is the value of ro.boot.product.vendor.sku
+status_t VintfObject::fetchVendorHalManifest(HalManifest* out, std::string* error) {
+    status_t status;
+
+    std::string vendorSku;
+    vendorSku = getPropertyFetcher()->getProperty("ro.boot.product.vendor.sku", "");
+
+    if (!vendorSku.empty()) {
+        status =
+            fetchOneHalManifest(kVendorVintfDir + "manifest_" + vendorSku + ".xml", out, error);
+        if (status == OK || status != NAME_NOT_FOUND) {
+            return status;
+        }
+    }
+
+    status = fetchOneHalManifest(kVendorManifest, out, error);
+    if (status == OK || status != NAME_NOT_FOUND) {
+        return status;
+    }
+
+    return NAME_NOT_FOUND;
 }
 
 // "out" is written to iff return status is OK.

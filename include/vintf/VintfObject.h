@@ -304,6 +304,7 @@ class VintfObject {
     status_t fetchOdmHalManifest(HalManifest* out, std::string* error = nullptr);
     status_t fetchOneHalManifest(const std::string& path, HalManifest* out,
                                  std::string* error = nullptr);
+    status_t fetchVendorHalManifest(HalManifest* out, std::string* error = nullptr);
     status_t fetchFrameworkHalManifest(HalManifest* out, std::string* error = nullptr);
 
     static bool IsHalDeprecated(const MatrixHal& oldMatrixHal,
