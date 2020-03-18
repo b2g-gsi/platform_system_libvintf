@@ -362,13 +362,15 @@ int checkAllFiles(const Dirmap& dirmap, const Properties& props,
     return vintfObject->checkCompatibility(error, flags);
 }
 
-int checkDirmaps(const Dirmap& dirmap) {
+int checkDirmaps(const Dirmap& dirmap, const Properties& props) {
+    auto hostPropertyFetcher = std::make_unique<PresetPropertyFetcher>();
+    hostPropertyFetcher->setProperties(props);
     auto exitCode = EX_OK;
     for (auto&& [prefix, mappedPath] : dirmap) {
         auto vintfObject =
             VintfObject::Builder()
                 .setFileSystem(std::make_unique<HostFileSystem>(dirmap, NAME_NOT_FOUND))
-                .setPropertyFetcher(std::make_unique<PropertyFetcherNoOp>())
+                .setPropertyFetcher(std::move(hostPropertyFetcher))
                 .setRuntimeInfoFactory(std::make_unique<StaticRuntimeInfoFactory>(nullptr))
                 .build();
 
@@ -439,9 +441,10 @@ int main(int argc, char** argv) {
     }
 
     auto dirmap = getDirmap(iterateValues(args, DIR_MAP));
+    auto properties = getProperties(iterateValues(args, PROPERTY));
 
     if (!iterateValues(args, CHECK_ONE).empty()) {
-        return checkDirmaps(dirmap);
+        return checkDirmaps(dirmap, properties);
     }
 
     auto checkCompat = iterateValues(args, CHECK_COMPAT);
@@ -457,8 +460,6 @@ int main(int argc, char** argv) {
         }
         args.emplace(DIR_MAP, "/:" + *rootdirs.begin());
     }
-
-    auto properties = getProperties(iterateValues(args, PROPERTY));
 
     std::shared_ptr<StaticRuntimeInfo> runtimeInfo;
     auto kernelArgs = iterateValues(args, KERNEL);
