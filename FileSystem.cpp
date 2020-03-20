@@ -49,16 +49,15 @@ status_t FileSystemImpl::fetch(const std::string& path, std::string* fetched,
 
 status_t FileSystemImpl::listFiles(const std::string& path, std::vector<std::string>* out,
                                    std::string* error) const {
-    errno = 0;
-    DIR* dirp = opendir(path.c_str());
-    if (!dirp || errno != 0) {
+    std::unique_ptr<DIR, decltype(&closedir)> dir(opendir(path.c_str()), closedir);
+    if (!dir) {
         if (error) {
             *error = "Cannot open " + path + ": " + strerror(errno);
         }
         return -errno;
     }
 
-    std::unique_ptr<DIR, decltype(&closedir)> dir(dirp, closedir);
+    errno = 0;
     dirent* dp;
     while ((dp = readdir(dir.get())) != nullptr) {
         if (dp->d_type != DT_DIR) {

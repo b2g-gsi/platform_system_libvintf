@@ -20,11 +20,13 @@
 #include <memory>
 #include <optional>
 
+#include <android-base/result.h>
+
 #include "CheckFlags.h"
 #include "CompatibilityMatrix.h"
 #include "FileSystem.h"
 #include "HalManifest.h"
-#include "KernelRequirement.h"
+#include "Level.h"
 #include "Named.h"
 #include "ObjectFactory.h"
 #include "PropertyFetcher.h"
@@ -178,10 +180,39 @@ class VintfObject {
     int32_t checkDeprecation(std::string* error = nullptr);
 
     /**
-     * Get requirements of the kernel (expressed in the framework compatibility matrix) that the
-     * running kernel is compatible with.
+     * Return kernel FCM version.
+     *
+     * If any error, UNSPECIFIED is returned, and error is set to an error message.
      */
-    std::optional<KernelRequirement> getCompatibleKernelRequirement(std::string* error = nullptr);
+    Level getKernelLevel(std::string* error = nullptr);
+
+    /**
+     * Returns true if the framework compatibility matrix has extensions. In
+     * other words, returns true if any of the following exists on the device:
+     * - device framework compatibility matrix
+     * - product framework compatibility matrix
+     *
+     * Return result:
+     * - true if framework compatibility matrix has extensions
+     * - false if framework compatibility
+     *     matrix does not have extensions.
+     * - !result.has_value() if any error. Check
+     *     result.error() for detailed message.
+     */
+    android::base::Result<bool> hasFrameworkCompatibilityMatrixExtensions();
+
+    /**
+     * Check that there are no unused HALs in HAL manifests. Currently, only
+     * device manifest is checked against framework compatibility matrix.
+     *
+     * Return result:
+     * - result.ok() if no unused HALs
+     * - !result.ok() && result.error().code() == 0 if with unused HALs. Check
+     *     result.error() for detailed message.
+     * - !result.ok() && result.error().code() != 0 if any error. Check
+     *     result.error() for detailed message.
+     */
+    android::base::Result<void> checkUnusedHals();
 
    private:
     std::unique_ptr<FileSystem> mFileSystem;
@@ -290,8 +321,6 @@ class VintfObject {
     static int32_t CheckDeprecation(std::string* error = nullptr);
 
    private:
-    static details::LockedSharedPtr<VintfObject> sInstance;
-
     status_t getCombinedFrameworkMatrix(const std::shared_ptr<const HalManifest>& deviceManifest,
                                         CompatibilityMatrix* out, std::string* error = nullptr);
     status_t getAllFrameworkMatrixLevels(std::vector<Named<CompatibilityMatrix>>* out,
@@ -305,8 +334,8 @@ class VintfObject {
     status_t fetchOdmHalManifest(HalManifest* out, std::string* error = nullptr);
     status_t fetchOneHalManifest(const std::string& path, HalManifest* out,
                                  std::string* error = nullptr);
+    status_t fetchVendorHalManifest(HalManifest* out, std::string* error = nullptr);
     status_t fetchFrameworkHalManifest(HalManifest* out, std::string* error = nullptr);
-
     static bool IsHalDeprecated(const MatrixHal& oldMatrixHal,
                                 const CompatibilityMatrix& targetMatrix,
                                 const ListInstances& listInstances, std::string* error);
@@ -353,6 +382,7 @@ extern const std::string kSystemVintfDir;
 extern const std::string kVendorVintfDir;
 extern const std::string kOdmVintfDir;
 extern const std::string kProductVintfDir;
+extern const std::string kSystemExtVintfDir;
 extern const std::string kOdmLegacyVintfDir;
 extern const std::string kOdmLegacyManifest;
 extern const std::string kVendorManifest;

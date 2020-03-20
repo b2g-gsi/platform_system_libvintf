@@ -265,25 +265,6 @@ class AssembleVintfImpl : public AssembleVintf {
                 return false;
             }
         }
-
-        // Check HALs in device manifest that are not in framework matrix.
-        if (getBooleanFlag("VINTF_ENFORCE_NO_UNUSED_HALS")) {
-            auto unused = manifest.checkUnusedHals(matrix);
-            if (!unused.empty()) {
-                std::cerr << "Error: The following instances are in the device manifest but "
-                          << "not specified in framework compatibility matrix: " << std::endl
-                          << "    " << android::base::Join(unused, "\n    ") << std::endl
-                          << "Suggested fix:" << std::endl
-                          << "1. Check for any typos in device manifest or framework compatibility "
-                          << "matrices with FCM version >= " << matrix.level() << "." << std::endl
-                          << "2. Add them to any framework compatibility matrix with FCM "
-                          << "version >= " << matrix.level() << " where applicable." << std::endl
-                          << "3. Add them to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
-                          << "or DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE." << std::endl;
-
-                return false;
-            }
-        }
         return true;
     }
 

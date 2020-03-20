@@ -23,6 +23,8 @@
 #include <mutex>
 
 #include <android-base/logging.h>
+#include <android-base/result.h>
+#include <android-base/strings.h>
 
 #include "CompatibilityMatrix.h"
 #include "parse_string.h"
@@ -81,8 +83,8 @@ static std::unique_ptr<PropertyFetcher> createDefaultPropertyFetcher() {
     return propertyFetcher;
 }
 
-details::LockedSharedPtr<VintfObject> VintfObject::sInstance{};
 std::shared_ptr<VintfObject> VintfObject::GetInstance() {
+    static details::LockedSharedPtr<VintfObject> sInstance{};
     std::unique_lock<std::mutex> lock(sInstance.mutex);
     if (sInstance.object == nullptr) {
         sInstance.object = std::shared_ptr<VintfObject>(VintfObject::Builder().build().release());
@@ -226,20 +228,22 @@ status_t VintfObject::addDirectoryManifests(const std::string& directory, HalMan
 }
 
 // Priority for loading vendor manifest:
-// 1. /vendor/etc/vintf/manifest.xml + device fragments + ODM manifest (optional) + odm fragments
-// 2. /vendor/etc/vintf/manifest.xml + device fragments
+// 1. Vendor manifest + device fragments + ODM manifest (optional) + odm fragments
+// 2. Vendor manifest + device fragments
 // 3. ODM manifest (optional) + odm fragments
 // 4. /vendor/manifest.xml (legacy, no fragments)
 // where:
 // A + B means unioning <hal> tags from A and B. If B declares an override, then this takes priority
 // over A.
 status_t VintfObject::fetchDeviceHalManifest(HalManifest* out, std::string* error) {
-    status_t vendorStatus = fetchOneHalManifest(kVendorManifest, out, error);
+    HalManifest vendorManifest;
+    status_t vendorStatus = fetchVendorHalManifest(&vendorManifest, error);
     if (vendorStatus != OK && vendorStatus != NAME_NOT_FOUND) {
         return vendorStatus;
     }
 
     if (vendorStatus == OK) {
+        *out = std::move(vendorManifest);
         status_t fragmentStatus = addDirectoryManifests(kVendorManifestFragmentDir, out, error);
         if (fragmentStatus != OK) {
             return fragmentStatus;
@@ -272,6 +276,33 @@ status_t VintfObject::fetchDeviceHalManifest(HalManifest* out, std::string* erro
 
     // Use legacy /vendor/manifest.xml
     return out->fetchAllInformation(getFileSystem().get(), kVendorLegacyManifest, error);
+}
+
+// Priority:
+// 1. if {vendorSku} is defined, /vendor/etc/vintf/manifest_{vendorSku}.xml
+// 2. /vendor/etc/vintf/manifest.xml
+// where:
+// {vendorSku} is the value of ro.boot.product.vendor.sku
+status_t VintfObject::fetchVendorHalManifest(HalManifest* out, std::string* error) {
+    status_t status;
+
+    std::string vendorSku;
+    vendorSku = getPropertyFetcher()->getProperty("ro.boot.product.vendor.sku", "");
+
+    if (!vendorSku.empty()) {
+        status =
+            fetchOneHalManifest(kVendorVintfDir + "manifest_" + vendorSku + ".xml", out, error);
+        if (status == OK || status != NAME_NOT_FOUND) {
+            return status;
+        }
+    }
+
+    status = fetchOneHalManifest(kVendorManifest, out, error);
+    if (status == OK || status != NAME_NOT_FOUND) {
+        return status;
+    }
+
+    return NAME_NOT_FOUND;
 }
 
 // "out" is written to iff return status is OK.
@@ -401,43 +432,49 @@ status_t VintfObject::getOneMatrix(const std::string& path, Named<CompatibilityM
 
 status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<Named<CompatibilityMatrix>>* results,
                                                   std::string* error) {
-    std::vector<std::string> fileNames;
-
-    status_t listStatus = getFileSystem()->listFiles(kSystemVintfDir, &fileNames, error);
-    if (listStatus != OK) {
-        return listStatus;
-    }
-    for (const std::string& fileName : fileNames) {
-        std::string path = kSystemVintfDir + fileName;
-        Named<CompatibilityMatrix> namedMatrix;
-        std::string matrixError;
-        status_t matrixStatus = getOneMatrix(path, &namedMatrix, &matrixError);
-        if (matrixStatus != OK) {
-            // System manifests and matrices share the same dir. Client may not have enough
-            // permissions to read system manifests, or may not be able to parse it.
-            auto logLevel = matrixStatus == BAD_VALUE ? base::DEBUG : base::ERROR;
-            LOG(logLevel) << "Framework Matrix: Ignore file " << path << ": " << matrixError;
+    std::vector<std::string> dirs = {
+        kSystemVintfDir,
+        kSystemExtVintfDir,
+        kProductVintfDir,
+    };
+    for (const auto& dir : dirs) {
+        std::vector<std::string> fileNames;
+        status_t listStatus = getFileSystem()->listFiles(dir, &fileNames, error);
+        if (listStatus == NAME_NOT_FOUND) {
             continue;
         }
-        results->emplace_back(std::move(namedMatrix));
-    }
+        if (listStatus != OK) {
+            return listStatus;
+        }
+        for (const std::string& fileName : fileNames) {
+            std::string path = dir + fileName;
+            Named<CompatibilityMatrix> namedMatrix;
+            std::string matrixError;
+            status_t matrixStatus = getOneMatrix(path, &namedMatrix, &matrixError);
+            if (matrixStatus != OK) {
+                // Manifests and matrices share the same dir. Client may not have enough
+                // permissions to read system manifests, or may not be able to parse it.
+                auto logLevel = matrixStatus == BAD_VALUE ? base::DEBUG : base::ERROR;
+                LOG(logLevel) << "Framework Matrix: Ignore file " << path << ": " << matrixError;
+                continue;
+            }
+            results->emplace_back(std::move(namedMatrix));
+        }
 
-    Named<CompatibilityMatrix> productMatrix;
-    std::string productError;
-    status_t productStatus = getOneMatrix(kProductMatrix, &productMatrix, &productError);
-    if (productStatus == OK) {
-        results->emplace_back(std::move(productMatrix));
-    } else if (productStatus == NAME_NOT_FOUND) {
-        LOG(DEBUG) << "Framework Matrix: missing " << kProductMatrix;
-    } else {
-        if (error) *error = std::move(productError);
-        return productStatus;
+        if (dir == kSystemVintfDir && results->empty()) {
+            if (error) {
+                *error = "No framework matrices under " + dir + " can be fetched or parsed.\n";
+            }
+            return NAME_NOT_FOUND;
+        }
     }
 
     if (results->empty()) {
         if (error) {
             *error =
-                "No framework matrices under " + kSystemVintfDir + " can be fetched or parsed.\n";
+                "No framework matrices can be fetched or parsed. "
+                "The following directories are searched:\n  " +
+                android::base::Join(dirs, "\n  ");
         }
         return NAME_NOT_FOUND;
     }
@@ -549,6 +586,7 @@ const std::string kSystemVintfDir = "/system/etc/vintf/";
 const std::string kVendorVintfDir = "/vendor/etc/vintf/";
 const std::string kOdmVintfDir = "/odm/etc/vintf/";
 const std::string kProductVintfDir = "/product/etc/vintf/";
+const std::string kSystemExtVintfDir = "/system_ext/etc/vintf/";
 
 const std::string kVendorManifest = kVendorVintfDir + "manifest.xml";
 const std::string kSystemManifest = kSystemVintfDir + "manifest.xml";
@@ -576,6 +614,7 @@ std::vector<std::string> dumpFileList() {
         kVendorVintfDir,
         kOdmVintfDir,
         kProductVintfDir,
+        kSystemExtVintfDir,
         kOdmLegacyVintfDir,
         kVendorLegacyManifest,
         kVendorLegacyMatrix,
@@ -742,34 +781,17 @@ int32_t VintfObject::checkDeprecation(std::string* error) {
     return checkDeprecation(inManifest, error);
 }
 
-std::optional<KernelRequirement> VintfObject::getCompatibleKernelRequirement(std::string* error) {
-    auto matrix = getFrameworkCompatibilityMatrix();
-    if (!matrix) {
-        if (error) *error = "Cannot retrieve framework compatibility matrix";
-        return std::nullopt;
+Level VintfObject::getKernelLevel(std::string* error) {
+    auto manifest = getDeviceHalManifest();
+    if (!manifest) {
+        if (error) *error = "Cannot retrieve device manifest.";
+        return Level::UNSPECIFIED;
     }
-    auto runtime_info = getRuntimeInfo();
-    if (!runtime_info) {
-        if (error) *error = "Cannot retrieve runtime information";
-        return std::nullopt;
+    if (manifest->kernel().has_value() && manifest->kernel()->level() != Level::UNSPECIFIED) {
+        return manifest->kernel()->level();
     }
-    auto reqs = runtime_info->mKernel.getMatchedKernelRequirements(
-        matrix->framework.mKernels, runtime_info->kernelLevel(), error);
-    if (reqs.empty()) {
-        if (error) error->insert(0, "Cannot find any matched kernel requirements: ");
-        return std::nullopt;
-    }
-    for (const MatrixKernel* matrixKernel : reqs) {
-        if (matrixKernel->conditions().empty()) {
-            return KernelRequirement(matrixKernel->minLts(),
-                                     matrix->getSourceMatrixLevel(matrixKernel));
-        }
-    }
-    KernelRequirement ret(reqs[0]->minLts(), matrix->getSourceMatrixLevel(reqs[0]));
-    LOG(ERROR) << "Cannot find kernel requirement with empty conditions; "
-               << "this should not happen. Returning (" << ret.minLts() << ", " << ret.level()
-               << ") as a heuristic.";
-    return ret;
+    if (error) *error = "Device manifest does not specify kernel FCM version.";
+    return Level::UNSPECIFIED;
 }
 
 const std::unique_ptr<FileSystem>& VintfObject::getFileSystem() {
@@ -782,6 +804,55 @@ const std::unique_ptr<PropertyFetcher>& VintfObject::getPropertyFetcher() {
 
 const std::unique_ptr<ObjectFactory<RuntimeInfo>>& VintfObject::getRuntimeInfoFactory() {
     return mRuntimeInfoFactory;
+}
+
+android::base::Result<bool> VintfObject::hasFrameworkCompatibilityMatrixExtensions() {
+    std::vector<Named<CompatibilityMatrix>> matrixFragments;
+    std::string error;
+    status_t status = getAllFrameworkMatrixLevels(&matrixFragments, &error);
+    if (status != OK) {
+        return android::base::Error(-status)
+               << "Cannot get all framework matrix fragments: " << error;
+    }
+    for (const auto& namedMatrix : matrixFragments) {
+        // Returns true if product matrix exists.
+        if (android::base::StartsWith(namedMatrix.name, kProductVintfDir)) {
+            return true;
+        }
+        // Returns true if device system matrix exists.
+        if (android::base::StartsWith(namedMatrix.name, kSystemVintfDir) &&
+            namedMatrix.object.level() == Level::UNSPECIFIED &&
+            !namedMatrix.object.getHals().empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+android::base::Result<void> VintfObject::checkUnusedHals() {
+    auto matrix = getFrameworkCompatibilityMatrix();
+    if (matrix == nullptr) {
+        return android::base::Error(-NAME_NOT_FOUND) << "Missing framework matrix.";
+    }
+    auto manifest = getDeviceHalManifest();
+    if (manifest == nullptr) {
+        return android::base::Error(-NAME_NOT_FOUND) << "Missing device manifest.";
+    }
+    auto unused = manifest->checkUnusedHals(*matrix);
+    if (!unused.empty()) {
+        return android::base::Error()
+               << "The following instances are in the device manifest but "
+               << "not specified in framework compatibility matrix: \n"
+               << "    " << android::base::Join(unused, "\n    ") << "\n"
+               << "Suggested fix:\n"
+               << "1. Check for any typos in device manifest or framework compatibility "
+               << "matrices with FCM version >= " << matrix->level() << ".\n"
+               << "2. Add them to any framework compatibility matrix with FCM "
+               << "version >= " << matrix->level() << " where applicable.\n"
+               << "3. Add them to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
+               << "or DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE.";
+    }
+    return {};
 }
 
 // make_unique does not work because VintfObject constructor is private.

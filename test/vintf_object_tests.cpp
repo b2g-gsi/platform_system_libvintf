@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include <android-base/logging.h>
-#include <android-base/strings.h>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <stdio.h>
 #include <unistd.h>
 
+#include <android-base/file.h>
+#include <android-base/logging.h>
 #include <android-base/strings.h>
 #include <hidl-util/FQName.h>
 
@@ -32,6 +31,7 @@
 #include "utils-fake.h"
 
 using namespace ::testing;
+using namespace std::literals;
 
 using android::FqInstance;
 
@@ -365,33 +365,22 @@ class VintfObjectTestBase : public ::testing::Test {
         return static_cast<MockPropertyFetcher&>(*vintfObject->getPropertyFetcher());
     }
 
+    void useEmptyFileSystem() {
+        // By default, no files exist in the file system.
+        // Use EXPECT_CALL because more specific expectation of fetch and listFiles will come along.
+        EXPECT_CALL(fetcher(), listFiles(_, _, _)).Times(AnyNumber())
+            .WillRepeatedly(Return(::android::NAME_NOT_FOUND));
+        EXPECT_CALL(fetcher(), fetch(_, _)).Times(AnyNumber())
+            .WillRepeatedly(Return(::android::NAME_NOT_FOUND));
+    }
+
     // Setup the MockFileSystem used by the fetchAllInformation template
     // so it returns the given metadata info instead of fetching from device.
     void setupMockFetcher(const std::string& vendorManifestXml, const std::string& systemMatrixXml,
-                          const std::string& systemManifestXml, const std::string& vendorMatrixXml,
-                          const std::string& productModel) {
-        ON_CALL(fetcher(), listFiles(StrEq(kVendorManifestFragmentDir), _, _))
-            .WillByDefault(Return(::android::OK));
-        ON_CALL(fetcher(), listFiles(StrEq(kSystemManifestFragmentDir), _, _))
-            .WillByDefault(Return(::android::OK));
-        ON_CALL(fetcher(), listFiles(StrEq(kOdmManifestFragmentDir), _, _))
-            .WillByDefault(Return(::android::OK));
-        ON_CALL(fetcher(), listFiles(StrEq(kProductManifestFragmentDir), _, _))
-            .WillByDefault(Return(::android::OK));
+                          const std::string& systemManifestXml, const std::string& vendorMatrixXml) {
 
-        if (!productModel.empty()) {
-            ON_CALL(fetcher(),
-                    fetch(StrEq(kOdmLegacyVintfDir + "manifest_" + productModel + ".xml"), _))
-                .WillByDefault(Return(::android::NAME_NOT_FOUND));
-            ON_CALL(fetcher(), fetch(StrEq(kOdmVintfDir + "manifest_" + productModel + ".xml"), _))
-                .WillByDefault(Return(::android::NAME_NOT_FOUND));
-        }
-        ON_CALL(fetcher(), fetch(StrEq(kOdmLegacyManifest), _))
-            .WillByDefault(Return(::android::NAME_NOT_FOUND));
-        ON_CALL(fetcher(), fetch(StrEq(kOdmManifest), _))
-            .WillByDefault(Return(::android::NAME_NOT_FOUND));
-        ON_CALL(fetcher(), fetch(StrEq(kVendorManifest), _))
-            .WillByDefault(Return(::android::NAME_NOT_FOUND));
+        useEmptyFileSystem();
+
         ON_CALL(fetcher(), fetch(StrEq(kVendorLegacyManifest), _))
             .WillByDefault(
                 Invoke([vendorManifestXml](const std::string& path, std::string& fetched) {
@@ -406,8 +395,6 @@ class VintfObjectTestBase : public ::testing::Test {
                     fetched = systemManifestXml;
                     return 0;
                 }));
-        ON_CALL(fetcher(), fetch(StrEq(kVendorMatrix), _))
-            .WillByDefault(Return(::android::NAME_NOT_FOUND));
         ON_CALL(fetcher(), fetch(StrEq(kVendorLegacyMatrix), _))
             .WillByDefault(Invoke([vendorMatrixXml](const std::string& path, std::string& fetched) {
                 (void)path;
@@ -420,19 +407,6 @@ class VintfObjectTestBase : public ::testing::Test {
                 fetched = systemMatrixXml;
                 return 0;
             }));
-        // Don't list /system/etc/vintf unless otherwise specified.
-        ON_CALL(fetcher(), listFiles(StrEq(kSystemVintfDir), _, _))
-            .WillByDefault(Return(::android::OK));
-        // Don't fetch product matrix unless otherwise specified.
-        ON_CALL(fetcher(), fetch(StrEq(kProductMatrix), _)).WillByDefault(Return(NAME_NOT_FOUND));
-        // Don't fetch product manifest unless otherwise specified.
-        ON_CALL(fetcher(), fetch(StrEq(kProductManifest), _)).WillByDefault(Return(NAME_NOT_FOUND));
-    }
-
-    void setFakeProperties() {
-        productModel = "fake_sku";
-        ON_CALL(propertyFetcher(), getProperty("ro.boot.product.hardware.sku", _))
-            .WillByDefault(Return(productModel));
     }
 
     virtual void SetUp() {
@@ -448,32 +422,18 @@ class VintfObjectTestBase : public ::testing::Test {
     }
 
     void expectVendorManifest(size_t times = 1) {
-        EXPECT_CALL(fetcher(), fetch(StrEq(kVendorManifest), _)).Times(times);
-        if (!productModel.empty()) {
-            EXPECT_CALL(fetcher(),
-                        fetch(StrEq(kOdmLegacyVintfDir + "manifest_" + productModel + ".xml"), _))
-                .Times(times);
-            EXPECT_CALL(fetcher(),
-                        fetch(StrEq(kOdmVintfDir + "manifest_" + productModel + ".xml"), _))
-                .Times(times);
-        }
-        EXPECT_CALL(fetcher(), fetch(StrEq(kOdmLegacyManifest), _)).Times(times);
-        EXPECT_CALL(fetcher(), fetch(StrEq(kOdmManifest), _)).Times(times);
         EXPECT_CALL(fetcher(), fetch(StrEq(kVendorLegacyManifest), _)).Times(times);
     }
 
     void expectSystemManifest(size_t times = 1) {
         EXPECT_CALL(fetcher(), fetch(StrEq(kSystemManifest), _)).Times(times);
-        EXPECT_CALL(fetcher(), fetch(StrEq(kProductManifest), _)).Times(times);
     }
 
     void expectVendorMatrix(size_t times = 1) {
-        EXPECT_CALL(fetcher(), fetch(StrEq(kVendorMatrix), _)).Times(times);
         EXPECT_CALL(fetcher(), fetch(StrEq(kVendorLegacyMatrix), _)).Times(times);
     }
 
     void expectSystemMatrix(size_t times = 1) {
-        EXPECT_CALL(fetcher(), fetch(StrEq(kProductMatrix), _)).Times(times);
         EXPECT_CALL(fetcher(), fetch(StrEq(kSystemLegacyMatrix), _)).Times(times);
     }
 
@@ -513,7 +473,6 @@ class VintfObjectTestBase : public ::testing::Test {
         return static_cast<MockRuntimeInfoFactory&>(*vintfObject->getRuntimeInfoFactory());
     }
 
-    std::string productModel;
     std::unique_ptr<VintfObject> vintfObject;
 };
 
@@ -522,9 +481,7 @@ class VintfObjectCompatibleTest : public VintfObjectTestBase {
    protected:
     virtual void SetUp() {
         VintfObjectTestBase::SetUp();
-        setFakeProperties();
-        setupMockFetcher(vendorManifestXml1, systemMatrixXml1, systemManifestXml1, vendorMatrixXml1,
-                         productModel);
+        setupMockFetcher(vendorManifestXml1, systemMatrixXml1, systemManifestXml1, vendorMatrixXml1);
     }
 };
 
@@ -549,9 +506,7 @@ class VintfObjectIncompatibleTest : public VintfObjectTestBase {
    protected:
     virtual void SetUp() {
         VintfObjectTestBase::SetUp();
-        setFakeProperties();
-        setupMockFetcher(vendorManifestXml1, systemMatrixXml2, systemManifestXml1, vendorMatrixXml1,
-                         productModel);
+        setupMockFetcher(vendorManifestXml1, systemMatrixXml2, systemManifestXml1, vendorMatrixXml1);
     }
 };
 
@@ -579,15 +534,12 @@ class VintfObjectRuntimeInfoTest : public VintfObjectTestBase {
    protected:
     virtual void SetUp() {
         VintfObjectTestBase::SetUp();
-        setupMockFetcher(vendorManifestKernelFcm, "", "", "", "");
+        setupMockFetcher(vendorManifestKernelFcm, "", "", "");
         expectVendorManifest();
     }
     virtual void TearDown() {
         Mock::VerifyAndClear(&runtimeInfoFactory());
         Mock::VerifyAndClear(runtimeInfoFactory().getInfo().get());
-    }
-    Level getKernelLevel(const RuntimeInfo* rf) {
-        return rf->kernelLevel();
     }
 };
 
@@ -623,10 +575,7 @@ TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
 }
 
 TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfoKernelFcm) {
-    auto rf = vintfObject->getRuntimeInfo(false /* skipCache */,
-                                          RuntimeInfo::FetchFlag::KERNEL_FCM);
-    ASSERT_NE(nullptr, rf);
-    ASSERT_EQ(Level{92}, getKernelLevel(rf.get()));
+    ASSERT_EQ(Level{92}, vintfObject->getKernelLevel());
 }
 
 // Test fixture that provides incompatible metadata from the mock device.
@@ -634,14 +583,7 @@ class VintfObjectTest : public VintfObjectTestBase {
    protected:
     virtual void SetUp() {
         VintfObjectTestBase::SetUp();
-
-        // By default use empty filesystem
-        EXPECT_CALL(fetcher(), listFiles(_, _, _))
-            .Times(AnyNumber())
-            .WillRepeatedly(Return(::android::OK));
-        EXPECT_CALL(fetcher(), fetch(_, _))
-            .Times(AnyNumber())
-            .WillRepeatedly(Return(::android::NAME_NOT_FOUND));
+        useEmptyFileSystem();
     }
 };
 
@@ -674,6 +616,11 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
                 "compatibility_matrix.1.xml",
                 "compatibility_matrix.empty.xml",
             };
+            return ::android::OK;
+        }));
+    EXPECT_CALL(fetcher(), listFiles(StrEq(kProductVintfDir), _, _))
+        .WillRepeatedly(Invoke([](const auto&, auto* out, auto*) {
+            *out = {android::base::Basename(kProductMatrix)};
             return ::android::OK;
         }));
     expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml",
@@ -783,20 +730,12 @@ bool containsOdmProductManifest(const std::shared_ptr<const HalManifest>& p) {
 
 class DeviceManifestTest : public VintfObjectTestBase {
    protected:
-    virtual void SetUp() {
-        VintfObjectTestBase::SetUp();
-        setFakeProperties();
-    }
-
     // Expect that /vendor/etc/vintf/manifest.xml is fetched.
     void expectVendorManifest() { expectFetch(kVendorManifest, vendorEtcManifest); }
     // /vendor/etc/vintf/manifest.xml does not exist.
     void noVendorManifest() { expectFileNotExist(StrEq(kVendorManifest)); }
     // Expect some ODM manifest is fetched.
     void expectOdmManifest() {
-        if (!productModel.empty()) {
-            expectFileNotExist(StrEq(kOdmVintfDir + "manifest_" + productModel + ".xml"));
-        }
         expectFetch(kOdmManifest, odmManifest);
     }
     void noOdmManifest() { expectFileNotExist(StartsWith("/odm/")); }
@@ -854,7 +793,8 @@ TEST_F(DeviceManifestTest, Combine4) {
     EXPECT_TRUE(containsVendorManifest(p));
 }
 
-class OdmManifestTest : public VintfObjectTestBase {
+class OdmManifestTest : public VintfObjectTestBase,
+                         public ::testing::WithParamInterface<const char*> {
    protected:
     virtual void SetUp() override {
         VintfObjectTestBase::SetUp();
@@ -865,13 +805,19 @@ class OdmManifestTest : public VintfObjectTestBase {
         expectNeverFetch(kVendorLegacyManifest);
         // Assume no files exist under /odm/ unless otherwise specified.
         expectFileNotExist(StartsWith("/odm/"));
+
+        // set SKU
+        productModel = GetParam();
+        ON_CALL(propertyFetcher(), getProperty("ro.boot.product.hardware.sku", _))
+            .WillByDefault(Return(productModel));
     }
     std::shared_ptr<const HalManifest> get() {
         return vintfObject->getDeviceHalManifest(true /* skipCache */);
     }
+    std::string productModel;
 };
 
-TEST_F(OdmManifestTest, OdmProductManifest) {
+TEST_P(OdmManifestTest, OdmProductManifest) {
     if (productModel.empty()) return;
     expectFetch(kOdmVintfDir + "manifest_" + productModel + ".xml", odmProductManifest);
     // /odm/etc/vintf/manifest.xml should not be fetched when the product variant exists.
@@ -881,14 +827,14 @@ TEST_F(OdmManifestTest, OdmProductManifest) {
     EXPECT_TRUE(containsOdmProductManifest(p));
 }
 
-TEST_F(OdmManifestTest, OdmManifest) {
+TEST_P(OdmManifestTest, OdmManifest) {
     expectFetch(kOdmManifest, odmManifest);
     auto p = get();
     ASSERT_NE(nullptr, p);
     EXPECT_TRUE(containsOdmManifest(p));
 }
 
-TEST_F(OdmManifestTest, OdmLegacyProductManifest) {
+TEST_P(OdmManifestTest, OdmLegacyProductManifest) {
     if (productModel.empty()) return;
     expectFetch(kOdmLegacyVintfDir + "manifest_" + productModel + ".xml", odmProductManifest);
     // /odm/manifest.xml should not be fetched when the product variant exists.
@@ -898,12 +844,14 @@ TEST_F(OdmManifestTest, OdmLegacyProductManifest) {
     EXPECT_TRUE(containsOdmProductManifest(p));
 }
 
-TEST_F(OdmManifestTest, OdmLegacyManifest) {
+TEST_P(OdmManifestTest, OdmLegacyManifest) {
     expectFetch(kOdmLegacyManifest, odmManifest);
     auto p = get();
     ASSERT_NE(nullptr, p);
     EXPECT_TRUE(containsOdmManifest(p));
 }
+
+INSTANTIATE_TEST_SUITE_P(OdmManifest, OdmManifestTest, ::testing::Values("", "fake_sku"));
 
 struct CheckedFqInstance : FqInstance {
     CheckedFqInstance(const char* s) : CheckedFqInstance(std::string(s)) {}
@@ -932,6 +880,7 @@ class DeprecateTest : public VintfObjectTestBase {
    protected:
     virtual void SetUp() override {
         VintfObjectTestBase::SetUp();
+        useEmptyFileSystem();
         EXPECT_CALL(fetcher(), listFiles(StrEq(kSystemVintfDir), _, _))
             .WillRepeatedly(Invoke([](const auto&, auto* out, auto*) {
                 *out = {
@@ -940,10 +889,6 @@ class DeprecateTest : public VintfObjectTestBase {
                 };
                 return ::android::OK;
             }));
-        EXPECT_CALL(fetcher(), listFiles(StrEq(kVendorManifestFragmentDir), _, _))
-            .WillOnce(Return(::android::OK));
-        EXPECT_CALL(fetcher(), listFiles(StrEq(kOdmManifestFragmentDir), _, _))
-            .WillOnce(Return(::android::OK));
         expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml", systemMatrixLevel1);
         expectFetch(kSystemVintfDir + "compatibility_matrix.2.xml", systemMatrixLevel2);
         expectFileNotExist(StrEq(kProductMatrix));
@@ -1035,14 +980,18 @@ TEST_F(DeprecateTest, CheckMajor2) {
 
 class MultiMatrixTest : public VintfObjectTestBase {
    protected:
+    void SetUp() override {
+        VintfObjectTestBase::SetUp();
+        useEmptyFileSystem();
+    }
     static std::string getFileName(size_t i) {
         return "compatibility_matrix." + std::to_string(static_cast<Level>(i)) + ".xml";
     }
     void SetUpMockSystemMatrices(const std::vector<std::string>& xmls) {
-        EXPECT_CALL(fetcher(), listFiles(_, _, _))
-            .Times(AnyNumber())
-            .WillRepeatedly(Return(::android::OK));
-        EXPECT_CALL(fetcher(), listFiles(StrEq(kSystemVintfDir), _, _))
+        SetUpMockMatrices(kSystemVintfDir, xmls);
+    }
+    void SetUpMockMatrices(const std::string& dir, const std::vector<std::string>& xmls) {
+        EXPECT_CALL(fetcher(), listFiles(StrEq(dir), _, _))
             .WillRepeatedly(Invoke([=](const auto&, auto* out, auto*) {
                 size_t i = 1;
                 for (const auto& content : xmls) {
@@ -1054,12 +1003,9 @@ class MultiMatrixTest : public VintfObjectTestBase {
             }));
         size_t i = 1;
         for (const auto& content : xmls) {
-            expectFetchRepeatedly(kSystemVintfDir + getFileName(i), content);
+            expectFetchRepeatedly(dir + getFileName(i), content);
             ++i;
         }
-        expectFileNotExist(kProductMatrix);
-        expectNeverFetch(kSystemLegacyMatrix);
-        expectFileNotExist(StartsWith("/odm/"));
     }
     void expectTargetFcmVersion(size_t level) {
         expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
@@ -1345,9 +1291,7 @@ KernelInfo MakeKernelInfo(const std::string& version, const std::string& key) {
 }
 
 TEST_F(KernelTest, Compatible) {
-    setFakeProperties();
-    setupMockFetcher(vendorManifestXml1, systemMatrixXml1, systemManifestXml1, vendorMatrixXml1,
-                     productModel);
+    setupMockFetcher(vendorManifestXml1, systemMatrixXml1, systemManifestXml1, vendorMatrixXml1);
 
     SetUpMockSystemMatrices({
         "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
@@ -1366,6 +1310,16 @@ TEST_F(KernelTest, Compatible) {
     runtimeInfoFactory().getInfo()->setNextFetchKernelInfo(info.version(), info.configs());
     std::string error;
     ASSERT_EQ(COMPATIBLE, vintfObject->checkCompatibility(&error)) << error;
+}
+
+TEST_F(KernelTest, Level) {
+    expectKernelFcmVersion(1, Level{10});
+    EXPECT_EQ(Level{10}, vintfObject->getKernelLevel());
+}
+
+TEST_F(KernelTest, LevelUnspecified) {
+    expectKernelFcmVersion(1, Level::UNSPECIFIED);
+    EXPECT_EQ(Level::UNSPECIFIED, vintfObject->getKernelLevel());
 }
 
 class KernelTestP : public KernelTest, public WithParamInterface<
@@ -1486,13 +1440,11 @@ class VintfObjectPartialUpdateTest : public MultiMatrixTest {
    protected:
     void SetUp() override {
         MultiMatrixTest::SetUp();
-        setFakeProperties();
     }
 };
 
 TEST_F(VintfObjectPartialUpdateTest, DeviceCompatibility) {
-    setupMockFetcher(vendorManifestRequire1, "", systemManifestXml1, vendorMatrixXml1,
-                     productModel);
+    setupMockFetcher(vendorManifestRequire1, "", systemManifestXml1, vendorMatrixXml1);
     SetUpMockSystemMatrices(systemMatrixRequire);
 
     expectSystemManifest();
@@ -1547,10 +1499,6 @@ using FrameworkManifestTestParam =
 class FrameworkManifestTest : public VintfObjectTestBase,
                               public ::testing::WithParamInterface<FrameworkManifestTestParam> {
    protected:
-    virtual void SetUp() {
-        VintfObjectTestBase::SetUp();
-        setFakeProperties();
-    }
 
     // Set the existence of /system/etc/vintf/manifest.xml
     void expectSystemManifest(bool exists) {
@@ -1635,80 +1583,99 @@ TEST_P(FrameworkManifestTest, Existence) {
 INSTANTIATE_TEST_SUITE_P(Vintf, FrameworkManifestTest,
                          ::testing::Combine(Bool(), Bool(), Bool(), Bool()));
 
-class GetCompatibleKernelRequirementTest : public MultiMatrixTest {
+
+//
+// Set of OEM FCM matrices at different FCM version.
+//
+
+std::vector<std::string> GetOemFcmMatrixLevels(const std::string& name) {
+    return {
+        // 1.xml
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>vendor.foo." + name + "</name>\n"
+        "        <version>1.0</version>\n"
+        "        <interface>\n"
+        "            <name>IExtra</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n",
+        // 2.xml
+        "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
+        "    <hal format=\"hidl\" optional=\"true\">\n"
+        "        <name>vendor.foo." + name + "</name>\n"
+        "        <version>2.0</version>\n"
+        "        <interface>\n"
+        "            <name>IExtra</name>\n"
+        "            <instance>default</instance>\n"
+        "        </interface>\n"
+        "    </hal>\n"
+        "</compatibility-matrix>\n",
+    };
+}
+
+class OemFcmLevelTest : public MultiMatrixTest,
+                        public WithParamInterface<std::tuple<size_t, bool, bool>> {
    protected:
-    void SetUp() override {
+    virtual void SetUp() override {
         MultiMatrixTest::SetUp();
-        SetUpMockSystemMatrices(systemMatrixKernelXmls);
-        expectTargetFcmVersion(1);
+        SetUpMockSystemMatrices({systemMatrixLevel1, systemMatrixLevel2});
+    }
+    using Instances = std::set<std::string>;
+    Instances GetInstances(const CompatibilityMatrix* fcm) {
+        Instances instances;
+        fcm->forEachHidlInstance([&instances](const auto& matrixInstance) {
+            instances.insert(matrixInstance.description(matrixInstance.versionRange().minVer()));
+            return true; // continue
+        });
+        return instances;
     }
 };
 
-TEST_F(GetCompatibleKernelRequirementTest, Version1) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 1}, {{"CONFIG_A1", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(1u, kreq->level());
-    EXPECT_EQ(KernelVersion(1, 0, 0), kreq->minLts());
+TEST_P(OemFcmLevelTest, Test) {
+    auto&& [level, hasProduct, hasSystemExt] = GetParam();
+
+    expectTargetFcmVersion(level);
+    if (hasProduct) {
+        SetUpMockMatrices(kProductVintfDir, GetOemFcmMatrixLevels("product"));
+    }
+    if (hasSystemExt) {
+        SetUpMockMatrices(kSystemExtVintfDir, GetOemFcmMatrixLevels("systemext"));
+    }
+
+    auto fcm = vintfObject->getFrameworkCompatibilityMatrix();
+    ASSERT_NE(nullptr, fcm);
+    auto instances = GetInstances(fcm.get());
+
+    auto containsOrNot = [](bool contains, const std::string& e) {
+        return contains ? SafeMatcherCast<Instances>(Contains(e))
+                        : SafeMatcherCast<Instances>(Not(Contains(e)));
+    };
+
+    EXPECT_THAT(instances, containsOrNot(level == 1,
+                                         "android.hardware.major@1.0::IMajor/default"));
+    EXPECT_THAT(instances, containsOrNot(level == 1 && hasProduct,
+                                         "vendor.foo.product@1.0::IExtra/default"));
+    EXPECT_THAT(instances, containsOrNot(level == 1 && hasSystemExt,
+                                         "vendor.foo.systemext@1.0::IExtra/default"));
+    EXPECT_THAT(instances, Contains("android.hardware.major@2.0::IMajor/default"));
+    EXPECT_THAT(instances, containsOrNot(hasProduct,
+                                         "vendor.foo.product@2.0::IExtra/default"));
+    EXPECT_THAT(instances, containsOrNot(hasSystemExt,
+                                         "vendor.foo.systemext@2.0::IExtra/default"));
 }
 
-TEST_F(GetCompatibleKernelRequirementTest, Version1Incompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 0}, {});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    EXPECT_FALSE(kreq.has_value())
-        << "Should be incompatible because CONFIG_A1 is missing, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
+static std::string OemFcmLevelTestParamToString(
+        const TestParamInfo<OemFcmLevelTest::ParamType>& info) {
+    auto&& [level, hasProduct, hasSystemExt] = info.param;
+    auto name = "Level" + std::to_string(level);
+    name += "With"s + (hasProduct ? "" : "out") + "Product";
+    name += "With"s + (hasSystemExt ? "" : "out") + "SystemExt";
+    return name;
 }
-
-TEST_F(GetCompatibleKernelRequirementTest, Version2) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 1}, {{"CONFIG_B1", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(1u, kreq->level());
-    EXPECT_EQ(KernelVersion(2, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, Version2FutureConfigIncompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 0}, {{"CONFIG_B2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    EXPECT_FALSE(kreq.has_value())
-        << "CONFIG_B2 is from 2.xml and should not be compatible, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrix) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({3, 0, 1}, {{"CONFIG_C2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(2u, kreq->level()) << "Should get 3.0.0 from 2.xml because 1.xml doesn't have 3.0.x";
-    EXPECT_EQ(KernelVersion(3, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromOldestMatrixPossible) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 1}, {{"CONFIG_D2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(2u, kreq->level()) << "Should get 4.0.0 from 2.xml even though it exists in 3.xml";
-    EXPECT_EQ(KernelVersion(4, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrixIncompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 0}, {{"CONFIG_D3", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_FALSE(kreq.has_value())
-        << "CONFIG_D3 is from 3.xml and should not be compatible, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromEvenNewerMatrix) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({5, 0, 1}, {{"CONFIG_E3", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(3u, kreq->level())
-        << "Should get 5.0.0 from 3.xml because neither 1.xml nor 2.xml has 5.0.x";
-    EXPECT_EQ(KernelVersion(5, 0, 0), kreq->minLts());
-}
-
+INSTANTIATE_TEST_SUITE_P(OemFcmLevel, OemFcmLevelTest, Combine(Values(1, 2), Bool(), Bool()),
+    OemFcmLevelTestParamToString);
 // clang-format on
 
 }  // namespace testing
