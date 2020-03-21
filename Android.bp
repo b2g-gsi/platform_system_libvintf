@@ -63,6 +63,9 @@ cc_library {
         "libtinyxml2",
         "libz",
     ],
+    header_libs: [
+        "libhidlmetadata_headers",
+    ],
     export_include_dirs: ["include", "."],
     local_include_dirs: ["include/vintf"],
 
@@ -70,7 +73,9 @@ cc_library {
         "libbase",
         "libhidl-gen-utils",
     ],
-
+    export_header_lib_headers: [
+        "libhidlmetadata_headers",
+    ],
     target: {
         host: {
             srcs: [
@@ -113,6 +118,7 @@ cc_binary_host {
     static_libs: [
         "libbase",
         "libhidl-gen-utils",
+        "libhidlmetadata",
         "liblog",
         "libvintf",
         "libutils",
