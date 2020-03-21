@@ -23,6 +23,7 @@
 #include <mutex>
 
 #include <android-base/logging.h>
+#include <android-base/result.h>
 #include <android-base/strings.h>
 
 #include "CompatibilityMatrix.h"
@@ -803,6 +804,55 @@ const std::unique_ptr<PropertyFetcher>& VintfObject::getPropertyFetcher() {
 
 const std::unique_ptr<ObjectFactory<RuntimeInfo>>& VintfObject::getRuntimeInfoFactory() {
     return mRuntimeInfoFactory;
+}
+
+android::base::Result<bool> VintfObject::hasFrameworkCompatibilityMatrixExtensions() {
+    std::vector<Named<CompatibilityMatrix>> matrixFragments;
+    std::string error;
+    status_t status = getAllFrameworkMatrixLevels(&matrixFragments, &error);
+    if (status != OK) {
+        return android::base::Error(-status)
+               << "Cannot get all framework matrix fragments: " << error;
+    }
+    for (const auto& namedMatrix : matrixFragments) {
+        // Returns true if product matrix exists.
+        if (android::base::StartsWith(namedMatrix.name, kProductVintfDir)) {
+            return true;
+        }
+        // Returns true if device system matrix exists.
+        if (android::base::StartsWith(namedMatrix.name, kSystemVintfDir) &&
+            namedMatrix.object.level() == Level::UNSPECIFIED &&
+            !namedMatrix.object.getHals().empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+android::base::Result<void> VintfObject::checkUnusedHals() {
+    auto matrix = getFrameworkCompatibilityMatrix();
+    if (matrix == nullptr) {
+        return android::base::Error(-NAME_NOT_FOUND) << "Missing framework matrix.";
+    }
+    auto manifest = getDeviceHalManifest();
+    if (manifest == nullptr) {
+        return android::base::Error(-NAME_NOT_FOUND) << "Missing device manifest.";
+    }
+    auto unused = manifest->checkUnusedHals(*matrix);
+    if (!unused.empty()) {
+        return android::base::Error()
+               << "The following instances are in the device manifest but "
+               << "not specified in framework compatibility matrix: \n"
+               << "    " << android::base::Join(unused, "\n    ") << "\n"
+               << "Suggested fix:\n"
+               << "1. Check for any typos in device manifest or framework compatibility "
+               << "matrices with FCM version >= " << matrix->level() << ".\n"
+               << "2. Add them to any framework compatibility matrix with FCM "
+               << "version >= " << matrix->level() << " where applicable.\n"
+               << "3. Add them to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
+               << "or DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE.";
+    }
+    return {};
 }
 
 // make_unique does not work because VintfObject constructor is private.

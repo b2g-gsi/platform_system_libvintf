@@ -67,6 +67,7 @@ cc_library {
     local_include_dirs: ["include/vintf"],
 
     export_shared_lib_headers: [
+        "libbase",
         "libhidl-gen-utils",
     ],
 

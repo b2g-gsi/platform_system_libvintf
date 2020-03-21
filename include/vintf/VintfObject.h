@@ -20,6 +20,8 @@
 #include <memory>
 #include <optional>
 
+#include <android-base/result.h>
+
 #include "CheckFlags.h"
 #include "CompatibilityMatrix.h"
 #include "FileSystem.h"
@@ -184,6 +186,34 @@ class VintfObject {
      */
     Level getKernelLevel(std::string* error = nullptr);
 
+    /**
+     * Returns true if the framework compatibility matrix has extensions. In
+     * other words, returns true if any of the following exists on the device:
+     * - device framework compatibility matrix
+     * - product framework compatibility matrix
+     *
+     * Return result:
+     * - true if framework compatibility matrix has extensions
+     * - false if framework compatibility
+     *     matrix does not have extensions.
+     * - !result.has_value() if any error. Check
+     *     result.error() for detailed message.
+     */
+    android::base::Result<bool> hasFrameworkCompatibilityMatrixExtensions();
+
+    /**
+     * Check that there are no unused HALs in HAL manifests. Currently, only
+     * device manifest is checked against framework compatibility matrix.
+     *
+     * Return result:
+     * - result.ok() if no unused HALs
+     * - !result.ok() && result.error().code() == 0 if with unused HALs. Check
+     *     result.error() for detailed message.
+     * - !result.ok() && result.error().code() != 0 if any error. Check
+     *     result.error() for detailed message.
+     */
+    android::base::Result<void> checkUnusedHals();
+
    private:
     std::unique_ptr<FileSystem> mFileSystem;
     std::unique_ptr<ObjectFactory<RuntimeInfo>> mRuntimeInfoFactory;
@@ -306,7 +336,6 @@ class VintfObject {
                                  std::string* error = nullptr);
     status_t fetchVendorHalManifest(HalManifest* out, std::string* error = nullptr);
     status_t fetchFrameworkHalManifest(HalManifest* out, std::string* error = nullptr);
-
     static bool IsHalDeprecated(const MatrixHal& oldMatrixHal,
                                 const CompatibilityMatrix& targetMatrix,
                                 const ListInstances& listInstances, std::string* error);
