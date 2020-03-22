@@ -227,15 +227,44 @@ std::vector<std::string> HalManifest::checkIncompatibleHals(const CompatibilityM
     return ret;
 }
 
-std::set<std::string> HalManifest::checkUnusedHals(const CompatibilityMatrix& mat) const {
+std::set<std::string> HalManifest::checkUnusedHals(
+    const CompatibilityMatrix& mat, const std::vector<HidlInterfaceMetadata>& hidlMetadata) const {
+    std::multimap<std::string, std::string> childrenMap;
+    for (const auto& child : hidlMetadata) {
+        for (const auto& parent : child.inherited) {
+            childrenMap.emplace(parent, child.name);
+        }
+    }
+
     std::set<std::string> ret;
 
-    forEachInstance([&ret, &mat](const auto& manifestInstance) {
-        if (!mat.matchInstance(manifestInstance.format(), manifestInstance.package(),
-                               manifestInstance.version(), manifestInstance.interface(),
-                               manifestInstance.instance())) {
-            ret.insert(manifestInstance.description());
+    forEachInstance([&ret, &mat, &childrenMap](const auto& manifestInstance) {
+        if (mat.matchInstance(manifestInstance.format(), manifestInstance.package(),
+                              manifestInstance.version(), manifestInstance.interface(),
+                              manifestInstance.instance())) {
+            // manifestInstance exactly matches an instance in |mat|.
+            return true;
         }
+        // For HIDL instances, If foo@2.0 inherits from foo@1.0, manifest may contain both, but
+        // matrix may contain only 2.0 if 1.0 is considered deprecated. Hence, if manifestInstance
+        // is 1.0, check all its children in the matrix too.
+        // If there is at least one match, do not consider it unused.
+        if (manifestInstance.format() == HalFormat::HIDL) {
+            auto range =
+                childrenMap.equal_range(manifestInstance.getFqInstance().getFqName().string());
+            for (auto it = range.first; it != range.second; ++it) {
+                FQName fqName;
+                CHECK(fqName.setTo(it->second));
+                if (mat.matchInstance(manifestInstance.format(), fqName.package(),
+                                      fqName.getVersion(), fqName.name(),
+                                      manifestInstance.instance())) {
+                    return true;
+                }
+            }
+        }
+
+        // If no match is found, consider it unused.
+        ret.insert(manifestInstance.description());
         return true;
     });
 

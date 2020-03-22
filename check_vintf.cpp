@@ -24,7 +24,9 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/parseint.h>
+#include <android-base/result.h>
 #include <android-base/strings.h>
+#include <hidl/metadata.h>
 #include <utils/Errors.h>
 #include <vintf/KernelConfigParser.h>
 #include <vintf/VintfObject.h>
@@ -345,8 +347,8 @@ int usage(const char* me) {
     return EX_USAGE;
 }
 
-int checkAllFiles(const Dirmap& dirmap, const Properties& props,
-                  std::shared_ptr<StaticRuntimeInfo> runtimeInfo, std::string* error) {
+android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties& props,
+                                          std::shared_ptr<StaticRuntimeInfo> runtimeInfo) {
     auto hostPropertyFetcher = std::make_unique<PresetPropertyFetcher>();
     hostPropertyFetcher->setProperties(props);
 
@@ -359,7 +361,31 @@ int checkAllFiles(const Dirmap& dirmap, const Properties& props,
             .setPropertyFetcher(std::move(hostPropertyFetcher))
             .setRuntimeInfoFactory(std::make_unique<StaticRuntimeInfoFactory>(runtimeInfo))
             .build();
-    return vintfObject->checkCompatibility(error, flags);
+
+    std::string error;
+    int compatibleResult = vintfObject->checkCompatibility(&error, flags);
+    if (compatibleResult == INCOMPATIBLE) {
+        return android::base::Error() << error;
+    }
+    if (compatibleResult != COMPATIBLE) {
+        return android::base::Error(-compatibleResult) << error;
+    }
+
+    auto hasFcmExt = vintfObject->hasFrameworkCompatibilityMatrixExtensions();
+    if (!hasFcmExt.has_value()) {
+        return hasFcmExt.error();
+    }
+    auto deviceManifest = vintfObject->getDeviceHalManifest();
+    if (deviceManifest == nullptr) {
+        return android::base::Error(-NAME_NOT_FOUND) << "No device HAL manifest";
+    }
+    auto targetFcm = deviceManifest->level();
+    if (*hasFcmExt || (targetFcm != Level::UNSPECIFIED && targetFcm >= Level::R)) {
+        auto hidlMetadata = HidlInterfaceMetadata::all();
+        return vintfObject->checkUnusedHals(hidlMetadata);
+    }
+    LOG(INFO) << "Skip checking unused HALs.";
+    return {};
 }
 
 int checkDirmaps(const Dirmap& dirmap, const Properties& props) {
@@ -470,23 +496,22 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::string error;
     if (dirmap.empty()) {
         LOG(ERROR) << "Missing --rootdir or --dirmap option.";
         return usage(argv[0]);
     }
 
-    int compat = checkAllFiles(dirmap, properties, runtimeInfo, &error);
+    auto compat = checkAllFiles(dirmap, properties, runtimeInfo);
 
-    if (compat == COMPATIBLE) {
+    if (compat.ok()) {
         std::cout << "COMPATIBLE" << std::endl;
         return EX_OK;
     }
-    if (compat == INCOMPATIBLE) {
-        LOG(ERROR) << "files are incompatible: " << error;
+    if (compat.error().code() == 0) {
+        LOG(ERROR) << "files are incompatible: " << compat.error();
         std::cout << "INCOMPATIBLE" << std::endl;
         return EX_DATAERR;
     }
-    LOG(ERROR) << strerror(-compat) << ": " << error;
+    LOG(ERROR) << strerror(compat.error().code()) << ": " << compat.error();
     return EX_SOFTWARE;
 }

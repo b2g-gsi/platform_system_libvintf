@@ -889,12 +889,12 @@ class DeprecateTest : public VintfObjectTestBase {
                 };
                 return ::android::OK;
             }));
-        expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml", systemMatrixLevel1);
-        expectFetch(kSystemVintfDir + "compatibility_matrix.2.xml", systemMatrixLevel2);
+        expectFetchRepeatedly(kSystemVintfDir + "compatibility_matrix.1.xml", systemMatrixLevel1);
+        expectFetchRepeatedly(kSystemVintfDir + "compatibility_matrix.2.xml", systemMatrixLevel2);
         expectFileNotExist(StrEq(kProductMatrix));
         expectNeverFetch(kSystemLegacyMatrix);
 
-        expectFetch(kVendorManifest,
+        expectFetchRepeatedly(kVendorManifest,
                     "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"2\"/>");
         expectFileNotExist(StartsWith("/odm/"));
 
@@ -911,7 +911,7 @@ TEST_F(DeprecateTest, CheckNoDeprecate) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, &error)) << error;
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, {}, &error)) << error;
 }
 
 TEST_F(DeprecateTest, CheckRemoved) {
@@ -921,7 +921,7 @@ TEST_F(DeprecateTest, CheckRemoved) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "removed@1.0 should be deprecated. " << error;
 }
 
@@ -931,7 +931,7 @@ TEST_F(DeprecateTest, CheckMinor) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "minor@1.0 should be deprecated. " << error;
 }
 
@@ -942,7 +942,7 @@ TEST_F(DeprecateTest, CheckMinorDeprecatedInstance1) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "minor@1.0::IMinor/legacy should be deprecated. " << error;
 }
 
@@ -953,7 +953,7 @@ TEST_F(DeprecateTest, CheckMinorDeprecatedInstance2) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "minor@1.1::IMinor/legacy should be deprecated. " << error;
 }
 
@@ -964,7 +964,7 @@ TEST_F(DeprecateTest, CheckMajor1) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "major@1.0 should be deprecated. " << error;
 }
 
@@ -974,7 +974,36 @@ TEST_F(DeprecateTest, CheckMajor2) {
         "android.hardware.major@1.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
+        << "major@1.0 should be deprecated. " << error;
+}
+
+TEST_F(DeprecateTest, HidlMetadataNotDeprecate) {
+    auto pred = getInstanceListFunc({
+        "android.hardware.major@1.0::IMajor/default",
+        "android.hardware.major@2.0::IMajor/default",
+    });
+    std::string error;
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
+        << "major@1.0 should be deprecated. " << error;
+    std::vector<HidlInterfaceMetadata> hidlMetadata{
+      {"android.hardware.major@2.0::IMajor", {"android.hardware.major@1.0::IMajor"}},
+    };
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, hidlMetadata, &error))
+        << "major@1.0 should not be deprecated because it extends from 2.0: " << error;
+}
+
+TEST_F(DeprecateTest, HidlMetadataDeprecate) {
+    auto pred = getInstanceListFunc({
+        "android.hardware.major@1.0::IMajor/default",
+    });
+    std::string error;
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
+        << "major@1.0 should be deprecated. " << error;
+    std::vector<HidlInterfaceMetadata> hidlMetadata{
+      {"android.hardware.major@2.0::IMajor", {"android.hardware.major@1.0::IMajor"}},
+    };
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, hidlMetadata, &error))
         << "major@1.0 should be deprecated. " << error;
 }
 
@@ -1131,7 +1160,7 @@ TEST_F(RegexTest, DeprecateLevel2) {
         "android.hardware.regex@1.1::IRegex/regex_common/0",
         "android.hardware.regex@2.0::IRegex/default",
     });
-    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, &error)) << error;
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, {}, &error)) << error;
 
     for (const auto& deprecated : {
              "android.hardware.regex@1.0::IRegex/default",
@@ -1147,7 +1176,7 @@ TEST_F(RegexTest, DeprecateLevel2) {
             "android.hardware.regex@2.0::IRegex/default",
         });
         error.clear();
-        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
             << deprecated << " should be deprecated. " << error;
     }
 }
@@ -1161,7 +1190,7 @@ TEST_F(RegexTest, DeprecateLevel3) {
         "android.hardware.regex@2.0::IRegex/regex/2.0/1",
         "android.hardware.regex@2.0::IRegex/default",
     });
-    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, &error)) << error;
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, {}, &error)) << error;
 
     for (const auto& deprecated : {
              "android.hardware.regex@1.0::IRegex/default",
@@ -1181,7 +1210,7 @@ TEST_F(RegexTest, DeprecateLevel3) {
         });
 
         error.clear();
-        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
             << deprecated << " should be deprecated.";
     }
 }
