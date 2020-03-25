@@ -385,21 +385,31 @@ status_t VintfObject::fetchFrameworkHalManifest(HalManifest* out, std::string* e
             return dirStatus;
         }
 
-        HalManifest productManifest;
-        auto productStatus = fetchOneHalManifest(kProductManifest, &productManifest, error);
-        if (productStatus != OK && productStatus != NAME_NOT_FOUND) {
-            return productStatus;
-        }
-        if (productStatus == OK) {
-            if (!out->addAll(&productManifest, error)) {
-                if (error) {
-                    error->insert(0, "Cannot add " + kProductManifest + ":");
+        std::vector<std::pair<const std::string&, const std::string&>> extensions{
+            {kProductManifest, kProductManifestFragmentDir},
+            {kSystemExtManifest, kSystemExtManifestFragmentDir},
+        };
+        for (auto&& [manifestPath, frags] : extensions) {
+            HalManifest halManifest;
+            auto status = fetchOneHalManifest(manifestPath, &halManifest, error);
+            if (status != OK && status != NAME_NOT_FOUND) {
+                return status;
+            }
+            if (status == OK) {
+                if (!out->addAll(&halManifest, error)) {
+                    if (error) {
+                        error->insert(0, "Cannot add " + manifestPath + ":");
+                    }
+                    return UNKNOWN_ERROR;
                 }
-                return UNKNOWN_ERROR;
+            }
+
+            auto fragmentStatus = addDirectoryManifests(frags, out, error);
+            if (fragmentStatus != OK) {
+                return fragmentStatus;
             }
         }
-
-        return addDirectoryManifests(kProductManifestFragmentDir, out, error);
+        return OK;
     } else {
         LOG(WARNING) << "Cannot fetch " << kSystemManifest << ": "
                      << (error ? *error : strerror(-systemEtcStatus));
@@ -596,11 +606,13 @@ const std::string kVendorMatrix = kVendorVintfDir + "compatibility_matrix.xml";
 const std::string kOdmManifest = kOdmVintfDir + "manifest.xml";
 const std::string kProductMatrix = kProductVintfDir + "compatibility_matrix.xml";
 const std::string kProductManifest = kProductVintfDir + "manifest.xml";
+const std::string kSystemExtManifest = kSystemExtVintfDir + "manifest.xml";
 
 const std::string kVendorManifestFragmentDir = kVendorVintfDir + "manifest/";
 const std::string kSystemManifestFragmentDir = kSystemVintfDir + "manifest/";
 const std::string kOdmManifestFragmentDir = kOdmVintfDir + "manifest/";
 const std::string kProductManifestFragmentDir = kProductVintfDir + "manifest/";
+const std::string kSystemExtManifestFragmentDir = kSystemExtVintfDir + "manifest/";
 
 const std::string kVendorLegacyManifest = "/vendor/manifest.xml";
 const std::string kVendorLegacyMatrix = "/vendor/compatibility_matrix.xml";
