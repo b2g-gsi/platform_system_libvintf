@@ -64,6 +64,11 @@ status_t FileSystemImpl::listFiles(const std::string& path, std::vector<std::str
             out->push_back(dp->d_name);
         }
     }
+    if (errno != 0) {
+        if (error) {
+            *error = "Failed while reading directory " + path + ": " + strerror(errno);
+        }
+    }
     return -errno;
 }
 

@@ -56,8 +56,9 @@ static std::shared_ptr<const T> Get(
     if (skipCache || !ptr->fetchedOnce) {
         ptr->object = std::make_unique<T>();
         std::string error;
-        if (fetchAllInformation(ptr->object.get(), &error) != OK) {
-            LOG(WARNING) << error;
+        status_t status = fetchAllInformation(ptr->object.get(), &error);
+        if (status != OK) {
+            LOG(WARNING) << status << ": " << error;
             ptr->object = nullptr; // frees the old object
         }
         ptr->fetchedOnce = true;
