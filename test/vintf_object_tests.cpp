@@ -889,12 +889,12 @@ class DeprecateTest : public VintfObjectTestBase {
                 };
                 return ::android::OK;
             }));
-        expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml", systemMatrixLevel1);
-        expectFetch(kSystemVintfDir + "compatibility_matrix.2.xml", systemMatrixLevel2);
+        expectFetchRepeatedly(kSystemVintfDir + "compatibility_matrix.1.xml", systemMatrixLevel1);
+        expectFetchRepeatedly(kSystemVintfDir + "compatibility_matrix.2.xml", systemMatrixLevel2);
         expectFileNotExist(StrEq(kProductMatrix));
         expectNeverFetch(kSystemLegacyMatrix);
 
-        expectFetch(kVendorManifest,
+        expectFetchRepeatedly(kVendorManifest,
                     "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"2\"/>");
         expectFileNotExist(StartsWith("/odm/"));
 
@@ -911,7 +911,7 @@ TEST_F(DeprecateTest, CheckNoDeprecate) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, &error)) << error;
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, {}, &error)) << error;
 }
 
 TEST_F(DeprecateTest, CheckRemoved) {
@@ -921,7 +921,7 @@ TEST_F(DeprecateTest, CheckRemoved) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "removed@1.0 should be deprecated. " << error;
 }
 
@@ -931,7 +931,7 @@ TEST_F(DeprecateTest, CheckMinor) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "minor@1.0 should be deprecated. " << error;
 }
 
@@ -942,7 +942,7 @@ TEST_F(DeprecateTest, CheckMinorDeprecatedInstance1) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "minor@1.0::IMinor/legacy should be deprecated. " << error;
 }
 
@@ -953,7 +953,7 @@ TEST_F(DeprecateTest, CheckMinorDeprecatedInstance2) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "minor@1.1::IMinor/legacy should be deprecated. " << error;
 }
 
@@ -964,7 +964,7 @@ TEST_F(DeprecateTest, CheckMajor1) {
         "android.hardware.major@2.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
         << "major@1.0 should be deprecated. " << error;
 }
 
@@ -974,7 +974,36 @@ TEST_F(DeprecateTest, CheckMajor2) {
         "android.hardware.major@1.0::IMajor/default",
     });
     std::string error;
-    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
+        << "major@1.0 should be deprecated. " << error;
+}
+
+TEST_F(DeprecateTest, HidlMetadataNotDeprecate) {
+    auto pred = getInstanceListFunc({
+        "android.hardware.major@1.0::IMajor/default",
+        "android.hardware.major@2.0::IMajor/default",
+    });
+    std::string error;
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
+        << "major@1.0 should be deprecated. " << error;
+    std::vector<HidlInterfaceMetadata> hidlMetadata{
+      {"android.hardware.major@2.0::IMajor", {"android.hardware.major@1.0::IMajor"}},
+    };
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, hidlMetadata, &error))
+        << "major@1.0 should not be deprecated because it extends from 2.0: " << error;
+}
+
+TEST_F(DeprecateTest, HidlMetadataDeprecate) {
+    auto pred = getInstanceListFunc({
+        "android.hardware.major@1.0::IMajor/default",
+    });
+    std::string error;
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
+        << "major@1.0 should be deprecated. " << error;
+    std::vector<HidlInterfaceMetadata> hidlMetadata{
+      {"android.hardware.major@2.0::IMajor", {"android.hardware.major@1.0::IMajor"}},
+    };
+    EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, hidlMetadata, &error))
         << "major@1.0 should be deprecated. " << error;
 }
 
@@ -1131,7 +1160,7 @@ TEST_F(RegexTest, DeprecateLevel2) {
         "android.hardware.regex@1.1::IRegex/regex_common/0",
         "android.hardware.regex@2.0::IRegex/default",
     });
-    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, &error)) << error;
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, {}, &error)) << error;
 
     for (const auto& deprecated : {
              "android.hardware.regex@1.0::IRegex/default",
@@ -1147,7 +1176,7 @@ TEST_F(RegexTest, DeprecateLevel2) {
             "android.hardware.regex@2.0::IRegex/default",
         });
         error.clear();
-        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
             << deprecated << " should be deprecated. " << error;
     }
 }
@@ -1161,7 +1190,7 @@ TEST_F(RegexTest, DeprecateLevel3) {
         "android.hardware.regex@2.0::IRegex/regex/2.0/1",
         "android.hardware.regex@2.0::IRegex/default",
     });
-    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, &error)) << error;
+    EXPECT_EQ(NO_DEPRECATED_HALS, vintfObject->checkDeprecation(pred, {}, &error)) << error;
 
     for (const auto& deprecated : {
              "android.hardware.regex@1.0::IRegex/default",
@@ -1181,7 +1210,7 @@ TEST_F(RegexTest, DeprecateLevel3) {
         });
 
         error.clear();
-        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, &error))
+        EXPECT_EQ(DEPRECATED, vintfObject->checkDeprecation(pred, {}, &error))
             << deprecated << " should be deprecated.";
     }
 }
@@ -1455,102 +1484,51 @@ TEST_F(VintfObjectPartialUpdateTest, DeviceCompatibility) {
     EXPECT_TRUE(vintfObject->checkCompatibility(&error)) << error;
 }
 
-const std::string systemEtcManifest =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
-    "    <hal format=\"hidl\">\n"
-    "        <name>android.hardware.foo</name>\n"
-    "        <transport>hwbinder</transport>\n"
-    "        <fqname>@1.0::ISystemEtc/default</fqname>\n"
-    "    </hal>\n"
-    "</manifest>\n";
-
-const std::string systemEtcManifestFrag =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
-    "    <hal format=\"hidl\">\n"
-    "        <name>android.hardware.foo</name>\n"
-    "        <transport>hwbinder</transport>\n"
-    "        <fqname>@1.0::ISystemEtcFragment/default</fqname>\n"
-    "    </hal>\n"
-    "</manifest>\n";
-
-const std::string productEtcManifest =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
-    "    <hal format=\"hidl\">\n"
-    "        <name>android.hardware.foo</name>\n"
-    "        <transport>hwbinder</transport>\n"
-    "        <fqname>@1.0::IProductEtc/default</fqname>\n"
-    "    </hal>\n"
-    "</manifest>\n";
-
-const std::string productEtcManifestFrag =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
-    "    <hal format=\"hidl\">\n"
-    "        <name>android.hardware.foo</name>\n"
-    "        <transport>hwbinder</transport>\n"
-    "        <fqname>@1.0::IProductEtcFragment/default</fqname>\n"
-    "    </hal>\n"
-    "</manifest>\n";
+std::string CreateFrameworkManifestFrag(const std::string& interface) {
+    return "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+           "    <hal format=\"hidl\">\n"
+           "        <name>android.hardware.foo</name>\n"
+           "        <transport>hwbinder</transport>\n"
+           "        <fqname>@1.0::" + interface + "/default</fqname>\n"
+           "    </hal>\n"
+           "</manifest>\n";
+}
 
 using FrameworkManifestTestParam =
     std::tuple<bool /* Existence of /system/etc/vintf/manifest.xml */,
                bool /* Existence of /system/etc/vintf/manifest/fragment.xml */,
                bool /* Existence of /product/etc/vintf/manifest.xml */,
-               bool /* Existence of /product/etc/vintf/manifest/fragment.xml */>;
+               bool /* Existence of /product/etc/vintf/manifest/fragment.xml */,
+               bool /* Existence of /system_ext/etc/vintf/manifest.xml */,
+               bool /* Existence of /system_ext/etc/vintf/manifest/fragment.xml */>;
 class FrameworkManifestTest : public VintfObjectTestBase,
                               public ::testing::WithParamInterface<FrameworkManifestTestParam> {
    protected:
+    // Set the existence of |path|.
+    void expectManifest(const std::string& path, const std::string& interface, bool exists) {
+        if (exists) {
+            expectFetchRepeatedly(path, CreateFrameworkManifestFrag(interface));
+        } else {
+            expectFileNotExist(StrEq(path));
+        }
+    }
 
-    // Set the existence of /system/etc/vintf/manifest.xml
-    void expectSystemManifest(bool exists) {
+    // Set the existence of |path| as a fragment dir
+    void expectFragment(const std::string& path, const std::string& interface, bool exists) {
         if (exists) {
-            expectFetchRepeatedly(kSystemManifest, systemEtcManifest);
-        } else {
-            expectFileNotExist(StrEq(kSystemManifest));
-        }
-        expectFileNotExist(StrEq(kSystemLegacyManifest));
-    }
-    // Set the existence of /system/etc/vintf/manifest/fragment.xml
-    void expectSystemManifestFragment(bool exists) {
-        if (exists) {
-            EXPECT_CALL(fetcher(), listFiles(StrEq(kSystemManifestFragmentDir), _, _))
+            EXPECT_CALL(fetcher(), listFiles(StrEq(path), _, _))
                 .Times(AnyNumber())
                 .WillRepeatedly(Invoke([](const auto&, auto* out, auto*) {
                     *out = {"fragment.xml"};
                     return ::android::OK;
                 }));
-            expectFetchRepeatedly(kSystemManifestFragmentDir + "fragment.xml",
-                                  systemEtcManifestFrag);
+            expectFetchRepeatedly(path + "fragment.xml",
+                                  CreateFrameworkManifestFrag(interface));
         } else {
-            EXPECT_CALL(fetcher(), listFiles(StrEq(kSystemManifestFragmentDir), _, _))
+            EXPECT_CALL(fetcher(), listFiles(StrEq(path), _, _))
                 .Times(AnyNumber())
                 .WillRepeatedly(Return(::android::OK));
-            expectFileNotExist(kSystemManifestFragmentDir + "fragment.xml");
-        }
-    }
-    // Set the existence of /product/etc/vintf/manifest.xml
-    void expectProductManifest(bool exists) {
-        if (exists) {
-            expectFetchRepeatedly(kProductManifest, productEtcManifest);
-        } else {
-            expectFileNotExist(kProductManifest);
-        }
-    }
-    // Set the existence of /product/etc/vintf/manifest/fragment.xml
-    void expectProductManifestFragment(bool exists) {
-        if (exists) {
-            EXPECT_CALL(fetcher(), listFiles(StrEq(kProductManifestFragmentDir), _, _))
-                .Times(AnyNumber())
-                .WillRepeatedly(Invoke([](const auto&, auto* out, auto*) {
-                    *out = {"fragment.xml"};
-                    return ::android::OK;
-                }));
-            expectFetchRepeatedly(kProductManifestFragmentDir + "fragment.xml",
-                                  productEtcManifestFrag);
-        } else {
-            EXPECT_CALL(fetcher(), listFiles(StrEq(kProductManifestFragmentDir), _, _))
-                .Times(AnyNumber())
-                .WillRepeatedly(Return(::android::OK));
-            expectFileNotExist(kProductManifestFragmentDir + "fragment.xml");
+            expectFileNotExist(path + "fragment.xml");
         }
     }
 
@@ -1564,10 +1542,14 @@ class FrameworkManifestTest : public VintfObjectTestBase,
 };
 
 TEST_P(FrameworkManifestTest, Existence) {
-    expectSystemManifest(std::get<0>(GetParam()));
-    expectSystemManifestFragment(std::get<1>(GetParam()));
-    expectProductManifest(std::get<2>(GetParam()));
-    expectProductManifestFragment(std::get<3>(GetParam()));
+    expectFileNotExist(StrEq(kSystemLegacyManifest));
+
+    expectManifest(kSystemManifest, "ISystemEtc", std::get<0>(GetParam()));
+    expectFragment(kSystemManifestFragmentDir, "ISystemEtcFragment", std::get<1>(GetParam()));
+    expectManifest(kProductManifest, "IProductEtc", std::get<2>(GetParam()));
+    expectFragment(kProductManifestFragmentDir, "IProductEtcFragment", std::get<3>(GetParam()));
+    expectManifest(kSystemExtManifest, "ISystemExtEtc", std::get<4>(GetParam()));
+    expectFragment(kSystemExtManifestFragmentDir, "ISystemExtEtcFragment", std::get<5>(GetParam()));
 
     if (!std::get<0>(GetParam())) {
         EXPECT_EQ(nullptr, vintfObject->getFrameworkHalManifest())
@@ -1578,10 +1560,12 @@ TEST_P(FrameworkManifestTest, Existence) {
         expectContainsInterface("ISystemEtcFragment", std::get<1>(GetParam()));
         expectContainsInterface("IProductEtc", std::get<2>(GetParam()));
         expectContainsInterface("IProductEtcFragment", std::get<3>(GetParam()));
+        expectContainsInterface("ISystemExtEtc", std::get<4>(GetParam()));
+        expectContainsInterface("ISystemExtEtcFragment", std::get<5>(GetParam()));
     }
 }
 INSTANTIATE_TEST_SUITE_P(Vintf, FrameworkManifestTest,
-                         ::testing::Combine(Bool(), Bool(), Bool(), Bool()));
+                         ::testing::Combine(Bool(), Bool(), Bool(), Bool(), Bool(), Bool()));
 
 
 //

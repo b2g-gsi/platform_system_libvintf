@@ -26,6 +26,7 @@
 #include <android-base/parseint.h>
 #include <android-base/result.h>
 #include <android-base/strings.h>
+#include <hidl/metadata.h>
 #include <utils/Errors.h>
 #include <vintf/KernelConfigParser.h>
 #include <vintf/VintfObject.h>
@@ -374,8 +375,14 @@ android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties
     if (!hasFcmExt.has_value()) {
         return hasFcmExt.error();
     }
-    if (*hasFcmExt) {
-        return vintfObject->checkUnusedHals();
+    auto deviceManifest = vintfObject->getDeviceHalManifest();
+    if (deviceManifest == nullptr) {
+        return android::base::Error(-NAME_NOT_FOUND) << "No device HAL manifest";
+    }
+    auto targetFcm = deviceManifest->level();
+    if (*hasFcmExt || (targetFcm != Level::UNSPECIFIED && targetFcm >= Level::R)) {
+        auto hidlMetadata = HidlInterfaceMetadata::all();
+        return vintfObject->checkUnusedHals(hidlMetadata);
     }
     LOG(INFO) << "Skip checking unused HALs.";
     return {};
