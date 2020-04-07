@@ -17,6 +17,7 @@
 
 #define LOG_TAG "libvintf"
 #include <android-base/logging.h>
+#include <android-base/strings.h>
 
 #include "RuntimeInfo.h"
 
@@ -39,6 +40,8 @@
 
 #define PROC_CONFIG "/proc/config.gz"
 #define BUFFER_SIZE sysconf(_SC_PAGESIZE)
+
+static constexpr char kMainline[] = "-mainline-";
 
 namespace android {
 namespace vintf {
@@ -144,6 +147,8 @@ status_t RuntimeInfoFetcher::parseKernelVersion() {
     if (!parse(mRuntimeInfo->mOsRelease.substr(0, pos), &mRuntimeInfo->mKernel.mVersion)) {
         return UNKNOWN_ERROR;
     }
+    mRuntimeInfo->mIsMainline =
+        android::base::StartsWith(mRuntimeInfo->mOsRelease.substr(pos), kMainline);
     return OK;
 }
 
