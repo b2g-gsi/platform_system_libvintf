@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <map>
+#include <optional>
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
@@ -347,6 +348,30 @@ int usage(const char* me) {
     return EX_USAGE;
 }
 
+// If |result| is already an error, don't do anything. Otherwise, set it to
+// an error with |errorCode|. Return reference to Error object for appending
+// additional error messages.
+android::base::Error& SetErrorCode(std::optional<android::base::Error>* retError,
+                                   int errorCode = 0) {
+    if (!retError->has_value()) {
+        retError->emplace(errorCode);
+    } else {
+        // Use existing error code.
+        // There should already been an error message appended. Add a new line char for
+        // additional messages.
+        (**retError) << "\n";
+    }
+    return **retError;
+}
+
+// If |other| is an error, add it to |retError|.
+template <typename T>
+void AddResult(std::optional<android::base::Error>* retError,
+               const android::base::Result<T>& other) {
+    if (other.ok()) return;
+    SetErrorCode(retError, other.error().code()) << other.error();
+}
+
 android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties& props,
                                           std::shared_ptr<StaticRuntimeInfo> runtimeInfo) {
     auto hostPropertyFetcher = std::make_unique<PresetPropertyFetcher>();
@@ -362,30 +387,39 @@ android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties
             .setRuntimeInfoFactory(std::make_unique<StaticRuntimeInfoFactory>(runtimeInfo))
             .build();
 
-    std::string error;
-    int compatibleResult = vintfObject->checkCompatibility(&error, flags);
+    std::optional<android::base::Error> retError = std::nullopt;
+
+    std::string compatibleError;
+    int compatibleResult = vintfObject->checkCompatibility(&compatibleError, flags);
     if (compatibleResult == INCOMPATIBLE) {
-        return android::base::Error() << error;
-    }
-    if (compatibleResult != COMPATIBLE) {
-        return android::base::Error(-compatibleResult) << error;
+        SetErrorCode(&retError) << compatibleError;
+    } else if (compatibleResult != COMPATIBLE) {
+        SetErrorCode(&retError, -compatibleResult) << compatibleError;
     }
 
     auto hasFcmExt = vintfObject->hasFrameworkCompatibilityMatrixExtensions();
-    if (!hasFcmExt.has_value()) {
-        return hasFcmExt.error();
-    }
+    AddResult(&retError, hasFcmExt);
+
     auto deviceManifest = vintfObject->getDeviceHalManifest();
+    Level targetFcm = Level::UNSPECIFIED;
     if (deviceManifest == nullptr) {
-        return android::base::Error(-NAME_NOT_FOUND) << "No device HAL manifest";
+        SetErrorCode(&retError, -NAME_NOT_FOUND) << "No device HAL manifest";
+    } else {
+        targetFcm = deviceManifest->level();
     }
-    auto targetFcm = deviceManifest->level();
-    if (*hasFcmExt || (targetFcm != Level::UNSPECIFIED && targetFcm >= Level::R)) {
+
+    if (hasFcmExt.value_or(false) || (targetFcm != Level::UNSPECIFIED && targetFcm >= Level::R)) {
         auto hidlMetadata = HidlInterfaceMetadata::all();
-        return vintfObject->checkUnusedHals(hidlMetadata);
+        AddResult(&retError, vintfObject->checkUnusedHals(hidlMetadata));
+    } else {
+        LOG(INFO) << "Skip checking unused HALs.";
     }
-    LOG(INFO) << "Skip checking unused HALs.";
-    return {};
+
+    if (retError.has_value()) {
+        return *retError;
+    } else {
+        return {};
+    }
 }
 
 int checkDirmaps(const Dirmap& dirmap, const Properties& props) {
