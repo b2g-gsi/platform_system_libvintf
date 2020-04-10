@@ -967,11 +967,12 @@ android::base::Result<void> VintfObject::checkUnusedHals(
                << "not specified in framework compatibility matrix: \n"
                << "    " << android::base::Join(unused, "\n    ") << "\n"
                << "Suggested fix:\n"
-               << "1. Check for any typos in device manifest or framework compatibility "
+               << "1. Update deprecated HALs to the latest version.\n"
+               << "2. Check for any typos in device manifest or framework compatibility "
                << "matrices with FCM version >= " << matrix->level() << ".\n"
-               << "2. Add them to any framework compatibility matrix with FCM "
-               << "version >= " << matrix->level() << " where applicable.\n"
-               << "3. Add them to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
+               << "3. For new platform HALs, add them to any framework compatibility matrix "
+               << "with FCM version >= " << matrix->level() << " where applicable.\n"
+               << "4. For device-specific HALs, add to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
                << "or DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE.";
     }
     return {};

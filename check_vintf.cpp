@@ -397,6 +397,16 @@ android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties
         SetErrorCode(&retError, -compatibleResult) << compatibleError;
     }
 
+    auto hidlMetadata = HidlInterfaceMetadata::all();
+
+    std::string deprecateError;
+    int deprecateResult = vintfObject->checkDeprecation(hidlMetadata, &deprecateError);
+    if (deprecateResult == DEPRECATED) {
+        SetErrorCode(&retError) << deprecateError;
+    } else if (deprecateResult != NO_DEPRECATED_HALS) {
+        SetErrorCode(&retError, -deprecateResult) << deprecateError;
+    }
+
     auto hasFcmExt = vintfObject->hasFrameworkCompatibilityMatrixExtensions();
     AddResult(&retError, hasFcmExt);
 
@@ -409,7 +419,6 @@ android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties
     }
 
     if (hasFcmExt.value_or(false) || (targetFcm != Level::UNSPECIFIED && targetFcm >= Level::R)) {
-        auto hidlMetadata = HidlInterfaceMetadata::all();
         AddResult(&retError, vintfObject->checkUnusedHals(hidlMetadata));
     } else {
         LOG(INFO) << "Skip checking unused HALs.";
