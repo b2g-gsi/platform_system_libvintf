@@ -58,7 +58,7 @@ static std::shared_ptr<const T> Get(
         std::string error;
         status_t status = fetchAllInformation(ptr->object.get(), &error);
         if (status != OK) {
-            LOG(WARNING) << status << ": " << error;
+            LOG(WARNING) << status << " VINTF parse error: " << error;
             ptr->object = nullptr; // frees the old object
         }
         ptr->fetchedOnce = true;
