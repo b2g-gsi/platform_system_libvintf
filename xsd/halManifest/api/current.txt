@@ -34,7 +34,9 @@ package hal.manifest {
   public class Kernel {
     ctor public Kernel();
     method public java.util.List<hal.manifest.Kernel.Config> getConfig();
+    method public String getTargetLevel();
     method public String getVersion();
+    method public void setTargetLevel(String);
     method public void setVersion(String);
   }
 
