@@ -32,7 +32,6 @@
 #include "FileSystem.h"
 #include "HalManifest.h"
 #include "Level.h"
-#include "Named.h"
 #include "ObjectFactory.h"
 #include "PropertyFetcher.h"
 #include "RuntimeInfo.h"
@@ -308,9 +307,9 @@ class VintfObject {
    private:
     status_t getCombinedFrameworkMatrix(const std::shared_ptr<const HalManifest>& deviceManifest,
                                         CompatibilityMatrix* out, std::string* error = nullptr);
-    status_t getAllFrameworkMatrixLevels(std::vector<Named<CompatibilityMatrix>>* out,
+    status_t getAllFrameworkMatrixLevels(std::vector<CompatibilityMatrix>* out,
                                          std::string* error = nullptr);
-    status_t getOneMatrix(const std::string& path, Named<CompatibilityMatrix>* out,
+    status_t getOneMatrix(const std::string& path, CompatibilityMatrix* out,
                           std::string* error = nullptr);
     status_t addDirectoryManifests(const std::string& directory, HalManifest* manifests,
                                    std::string* error = nullptr);

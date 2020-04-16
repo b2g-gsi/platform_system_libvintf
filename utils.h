@@ -33,6 +33,12 @@ namespace details {
 template <typename T>
 status_t fetchAllInformation(const FileSystem* fileSystem, const std::string& path,
                              const XmlConverter<T>& converter, T* outObject, std::string* error) {
+    if (outObject->fileName().empty()) {
+        outObject->setFileName(path);
+    } else {
+        outObject->setFileName(outObject->fileName() + ":" + path);
+    }
+
     std::string info;
     status_t result = fileSystem->fetch(path, &info, error);
 

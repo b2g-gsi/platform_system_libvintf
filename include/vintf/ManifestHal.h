@@ -30,12 +30,13 @@
 #include "ManifestInstance.h"
 #include "TransportArch.h"
 #include "Version.h"
+#include "WithFileName.h"
 
 namespace android {
 namespace vintf {
 
 // A component of HalManifest.
-struct ManifestHal {
+struct ManifestHal : public WithFileName {
     using InstanceType = ManifestInstance;
 
     ManifestHal() = default;
@@ -80,7 +81,7 @@ struct ManifestHal {
 
     // Whether this hal is a valid one. Note that an empty ManifestHal
     // (constructed via ManifestHal()) is valid.
-    bool isValid() const;
+    bool isValid(std::string* error = nullptr) const;
 
     // Return all versions mentioned by <version>s and <fqname>s.
     void appendAllVersions(std::set<Version>* ret) const;

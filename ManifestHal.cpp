@@ -24,18 +24,33 @@
 namespace android {
 namespace vintf {
 
-bool ManifestHal::isValid() const {
-    std::unordered_set<size_t> existing;
-    for (const auto &v : versions) {
-        if (existing.find(v.majorVer) != existing.end()) {
-            return false;
-        }
-        existing.insert(v.majorVer);
+bool ManifestHal::isValid(std::string* error) const {
+    if (error) {
+        error->clear();
     }
-    return transportArch.isValid();
+
+    bool success = true;
+    std::map<size_t, Version> existing;
+    for (const auto &v : versions) {
+        auto&& [it, inserted] = existing.emplace(v.majorVer, v);
+        if (inserted) {
+            continue;
+        }
+        success = false;
+        if (error) {
+            *error += "Duplicated major version: " + to_string(v) + " vs. " + to_string(it->second);
+        }
+    }
+    std::string transportArchError;
+    if (!transportArch.isValid(&transportArchError)) {
+        success = false;
+        if (error) *error += transportArchError;
+    }
+    return success;
 }
 
 bool ManifestHal::operator==(const ManifestHal &other) const {
+    // ignore fileName().
     if (format != other.format)
         return false;
     if (name != other.name)

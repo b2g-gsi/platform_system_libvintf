@@ -39,6 +39,7 @@
 #include "VendorNdk.h"
 #include "Version.h"
 #include "Vndk.h"
+#include "WithFileName.h"
 #include "XmlFileGroup.h"
 
 namespace android {
@@ -55,13 +56,17 @@ using Instances = std::map<Version, InstancesOfVersion>;
 
 // A HalManifest is reported by the hardware and query-able from
 // framework code. This is the API for the framework.
-struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestXmlFile> {
+struct HalManifest : public HalGroup<ManifestHal>,
+                     public XmlFileGroup<ManifestXmlFile>,
+                     public WithFileName {
    public:
 
     // Construct a device HAL manifest.
     HalManifest() : mType(SchemaType::DEVICE) {}
 
-    bool add(ManifestHal&& hal) override;
+    bool add(ManifestHal&& hal, std::string* error = nullptr) override;
+    // Move all hals from another HalManifest to this.
+    bool addAllHals(HalManifest* other, std::string* error = nullptr);
 
     // Given a component name (e.g. "android.hardware.camera"),
     // return getHal(name)->transport if the component exist and v exactly matches
@@ -142,7 +147,7 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
 
    protected:
     // Check before add()
-    bool shouldAdd(const ManifestHal& toAdd) const override;
+    bool shouldAdd(const ManifestHal& toAdd, std::string* error) const;
     bool shouldAddXmlFile(const ManifestXmlFile& toAdd) const override;
 
     bool forEachInstanceOfVersion(
@@ -226,7 +231,6 @@ struct HalManifest : public HalGroup<ManifestHal>, public XmlFileGroup<ManifestX
         SystemSdk mSystemSdk;
     } framework;
 };
-
 
 } // namespace vintf
 } // namespace android

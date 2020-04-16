@@ -199,6 +199,7 @@ std::unique_ptr<T> readObject(FileSystem* fileSystem, const std::string& path,
         return nullptr;
     }
     auto ret = std::make_unique<T>();
+    ret->setFileName(path);
     if (!converter(ret.get(), xml, &error)) {
         LOG(ERROR) << "Cannot parse '" << path << "': " << error;
         return nullptr;
