@@ -41,27 +41,50 @@ using details::InstancesOfVersion;
 using details::mergeField;
 
 // Check <version> tag for all <hal> with the same name.
-bool HalManifest::shouldAdd(const ManifestHal& hal) const {
-    if (!hal.isValid()) {
+bool HalManifest::shouldAdd(const ManifestHal& hal, std::string* error) const {
+    if (!hal.isValid(error)) {
+        if (error) {
+            error->insert(0, "HAL '" + hal.name + "' is not valid: ");
+            if (!hal.fileName().empty()) {
+                error->insert(0, "For file " + hal.fileName() + ": ");
+            }
+        }
         return false;
     }
     if (hal.isOverride()) {
         return true;
     }
     auto existingHals = mHals.equal_range(hal.name);
-    std::set<size_t> existingMajorVersions;
+    std::map<size_t, std::tuple<const ManifestHal*, Version>> existing;
     for (auto it = existingHals.first; it != existingHals.second; ++it) {
-        for (const auto& v : it->second.versions) {
+        const ManifestHal& existingHal = it->second;
+        for (const auto& v : existingHal.versions) {
             // Assume integrity on existingHals, so no check on emplace().second
-            existingMajorVersions.insert(v.majorVer);
+            existing.emplace(v.majorVer, std::make_tuple(&existingHal, v));
         }
     }
+    bool success = true;
     for (const auto& v : hal.versions) {
-        if (!existingMajorVersions.emplace(v.majorVer).second /* no insertion */) {
-            return false;
+        auto&& [existingIt, inserted] = existing.emplace(v.majorVer, std::make_tuple(&hal, v));
+        if (inserted) {
+            continue;
+        }
+        success = false;
+        if (error) {
+            auto&& [existingHal, existingVersion] = existingIt->second;
+            *error = "Conflicting major version: " + to_string(existingVersion);
+            if (!existingHal->fileName().empty()) {
+                *error += " (from " + existingHal->fileName() + ")";
+            }
+            *error += " vs. " + to_string(v);
+            if (!hal.fileName().empty()) {
+                *error += " (from " + hal.fileName() + ")";
+            }
+            *error +=
+                ". Check whether or not multiple modules providing the same HAL are installed.";
         }
     }
-    return true;
+    return success;
 }
 
 // Remove elements from "list" if p(element) returns true.
@@ -90,7 +113,7 @@ void HalManifest::removeHals(const std::string& name, size_t majorVer) {
     });
 }
 
-bool HalManifest::add(ManifestHal&& halToAdd) {
+bool HalManifest::add(ManifestHal&& halToAdd, std::string* error) {
     if (halToAdd.isOverride()) {
         if (halToAdd.isDisabledHal()) {
             // Special syntax when there are no instances at all. Remove all existing HALs
@@ -103,7 +126,25 @@ bool HalManifest::add(ManifestHal&& halToAdd) {
         }
     }
 
-    return HalGroup::add(std::move(halToAdd));
+    if (!shouldAdd(halToAdd, error)) {
+        return false;
+    }
+
+    CHECK(addInternal(std::move(halToAdd)) != nullptr);
+    return true;
+}
+
+bool HalManifest::addAllHals(HalManifest* other, std::string* error) {
+    for (auto& pair : other->mHals) {
+        if (!add(std::move(pair.second), error)) {
+            if (error) {
+                error->insert(0, "HAL \"" + pair.first + "\" has a conflict: ");
+            }
+            return false;
+        }
+    }
+    other->mHals.clear();
+    return true;
 }
 
 bool HalManifest::shouldAddXmlFile(const ManifestXmlFile& xmlFile) const {
@@ -465,6 +506,7 @@ std::string HalManifest::getXmlFilePath(const std::string& xmlFileName,
 }
 
 bool operator==(const HalManifest &lft, const HalManifest &rgt) {
+    // ignore fileName().
     return lft.mType == rgt.mType && lft.mLevel == rgt.mLevel && lft.mHals == rgt.mHals &&
            lft.mXmlFiles == rgt.mXmlFiles &&
            (lft.mType != SchemaType::DEVICE ||

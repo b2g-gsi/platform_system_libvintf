@@ -70,6 +70,8 @@ struct RuntimeInfo {
     // /sys/fs/selinux/policyvers
     size_t kernelSepolicyVersion() const;
 
+    bool isMainlineKernel() const;
+
     // Return whether this RuntimeInfo works with the given compatibility matrix. Return true if:
     // - mat is a framework compat-mat
     // - sepolicy.kernel-sepolicy-version == kernelSepolicyVersion()
@@ -122,6 +124,8 @@ struct RuntimeInfo {
     Version mBootAvbVersion;
 
     size_t mKernelSepolicyVersion = 0u;
+
+    bool mIsMainline = false;
 };
 
 } // namespace vintf

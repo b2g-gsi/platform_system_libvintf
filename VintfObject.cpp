@@ -58,7 +58,7 @@ static std::shared_ptr<const T> Get(
         std::string error;
         status_t status = fetchAllInformation(ptr->object.get(), &error);
         if (status != OK) {
-            LOG(WARNING) << status << ": " << error;
+            LOG(WARNING) << status << " VINTF parse error: " << error;
             ptr->object = nullptr; // frees the old object
         }
         ptr->fetchedOnce = true;
@@ -148,7 +148,7 @@ std::shared_ptr<const CompatibilityMatrix> VintfObject::getFrameworkCompatibilit
 status_t VintfObject::getCombinedFrameworkMatrix(
     const std::shared_ptr<const HalManifest>& deviceManifest, CompatibilityMatrix* out,
     std::string* error) {
-    std::vector<Named<CompatibilityMatrix>> matrixFragments;
+    std::vector<CompatibilityMatrix> matrixFragments;
     auto matrixFragmentsStatus = getAllFrameworkMatrixLevels(&matrixFragments, error);
     if (matrixFragmentsStatus != OK) {
         return matrixFragmentsStatus;
@@ -177,8 +177,8 @@ status_t VintfObject::getCombinedFrameworkMatrix(
     if (deviceLevel == Level::UNSPECIFIED) {
         // Cannot infer FCM version. Combine all matrices by assuming
         // Shipping FCM Version == min(all supported FCM Versions in the framework)
-        for (auto&& pair : matrixFragments) {
-            Level fragmentLevel = pair.object.level();
+        for (auto&& fragment : matrixFragments) {
+            Level fragmentLevel = fragment.level();
             if (fragmentLevel != Level::UNSPECIFIED && deviceLevel > fragmentLevel) {
                 deviceLevel = fragmentLevel;
             }
@@ -221,7 +221,7 @@ status_t VintfObject::addDirectoryManifests(const std::string& directory, HalMan
 
         if (!manifest->addAll(&fragmentManifest, error)) {
             if (error) {
-                error->insert(0, "Cannot add manifest fragment " + directory + file + ":");
+                error->insert(0, "Cannot add manifest fragment " + directory + file + ": ");
             }
             return UNKNOWN_ERROR;
         }
@@ -426,24 +426,24 @@ static void appendLine(std::string* error, const std::string& message) {
     }
 }
 
-status_t VintfObject::getOneMatrix(const std::string& path, Named<CompatibilityMatrix>* out,
+status_t VintfObject::getOneMatrix(const std::string& path, CompatibilityMatrix* out,
                                    std::string* error) {
     std::string content;
     status_t status = getFileSystem()->fetch(path, &content, error);
     if (status != OK) {
         return status;
     }
-    if (!gCompatibilityMatrixConverter(&out->object, content, error)) {
+    if (!gCompatibilityMatrixConverter(out, content, error)) {
         if (error) {
             error->insert(0, "Cannot parse " + path + ": ");
         }
         return BAD_VALUE;
     }
-    out->name = path;
+    out->setFileName(path);
     return OK;
 }
 
-status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<Named<CompatibilityMatrix>>* results,
+status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<CompatibilityMatrix>* results,
                                                   std::string* error) {
     std::vector<std::string> dirs = {
         kSystemVintfDir,
@@ -461,7 +461,7 @@ status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<Named<Compatibilit
         }
         for (const std::string& fileName : fileNames) {
             std::string path = dir + fileName;
-            Named<CompatibilityMatrix> namedMatrix;
+            CompatibilityMatrix namedMatrix;
             std::string matrixError;
             status_t matrixStatus = getOneMatrix(path, &namedMatrix, &matrixError);
             if (matrixStatus != OK) {
@@ -819,7 +819,7 @@ android::base::Result<void> VintfObject::IsFqInstanceDeprecated(
 int32_t VintfObject::checkDeprecation(const ListInstances& listInstances,
                                       const std::vector<HidlInterfaceMetadata>& hidlMetadata,
                                       std::string* error) {
-    std::vector<Named<CompatibilityMatrix>> matrixFragments;
+    std::vector<CompatibilityMatrix> matrixFragments;
     auto matrixFragmentsStatus = getAllFrameworkMatrixLevels(&matrixFragments, error);
     if (matrixFragmentsStatus != OK) {
         return matrixFragmentsStatus;
@@ -843,8 +843,8 @@ int32_t VintfObject::checkDeprecation(const ListInstances& listInstances,
 
     const CompatibilityMatrix* targetMatrix = nullptr;
     for (const auto& namedMatrix : matrixFragments) {
-        if (namedMatrix.object.level() == deviceLevel) {
-            targetMatrix = &namedMatrix.object;
+        if (namedMatrix.level() == deviceLevel) {
+            targetMatrix = &namedMatrix;
         }
     }
     if (targetMatrix == nullptr) {
@@ -864,11 +864,10 @@ int32_t VintfObject::checkDeprecation(const ListInstances& listInstances,
     // Matrices with unspecified level are considered "current".
     bool isDeprecated = false;
     for (const auto& namedMatrix : matrixFragments) {
-        if (namedMatrix.object.level() == Level::UNSPECIFIED) continue;
-        if (namedMatrix.object.level() >= deviceLevel) continue;
+        if (namedMatrix.level() == Level::UNSPECIFIED) continue;
+        if (namedMatrix.level() >= deviceLevel) continue;
 
-        const auto& oldMatrix = namedMatrix.object;
-        for (const MatrixHal& hal : oldMatrix.getHals()) {
+        for (const MatrixHal& hal : namedMatrix.getHals()) {
             if (IsHalDeprecated(hal, *targetMatrix, listInstances, childrenMap, error)) {
                 isDeprecated = true;
             }
@@ -924,7 +923,7 @@ const std::unique_ptr<ObjectFactory<RuntimeInfo>>& VintfObject::getRuntimeInfoFa
 }
 
 android::base::Result<bool> VintfObject::hasFrameworkCompatibilityMatrixExtensions() {
-    std::vector<Named<CompatibilityMatrix>> matrixFragments;
+    std::vector<CompatibilityMatrix> matrixFragments;
     std::string error;
     status_t status = getAllFrameworkMatrixLevels(&matrixFragments, &error);
     if (status != OK) {
@@ -933,17 +932,16 @@ android::base::Result<bool> VintfObject::hasFrameworkCompatibilityMatrixExtensio
     }
     for (const auto& namedMatrix : matrixFragments) {
         // Returns true if product matrix exists.
-        if (android::base::StartsWith(namedMatrix.name, kProductVintfDir)) {
+        if (android::base::StartsWith(namedMatrix.fileName(), kProductVintfDir)) {
             return true;
         }
         // Returns true if system_ext matrix exists.
-        if (android::base::StartsWith(namedMatrix.name, kSystemExtVintfDir)) {
+        if (android::base::StartsWith(namedMatrix.fileName(), kSystemExtVintfDir)) {
             return true;
         }
         // Returns true if device system matrix exists.
-        if (android::base::StartsWith(namedMatrix.name, kSystemVintfDir) &&
-            namedMatrix.object.level() == Level::UNSPECIFIED &&
-            !namedMatrix.object.getHals().empty()) {
+        if (android::base::StartsWith(namedMatrix.fileName(), kSystemVintfDir) &&
+            namedMatrix.level() == Level::UNSPECIFIED && !namedMatrix.getHals().empty()) {
             return true;
         }
     }
@@ -967,11 +965,12 @@ android::base::Result<void> VintfObject::checkUnusedHals(
                << "not specified in framework compatibility matrix: \n"
                << "    " << android::base::Join(unused, "\n    ") << "\n"
                << "Suggested fix:\n"
-               << "1. Check for any typos in device manifest or framework compatibility "
+               << "1. Update deprecated HALs to the latest version.\n"
+               << "2. Check for any typos in device manifest or framework compatibility "
                << "matrices with FCM version >= " << matrix->level() << ".\n"
-               << "2. Add them to any framework compatibility matrix with FCM "
-               << "version >= " << matrix->level() << " where applicable.\n"
-               << "3. Add them to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
+               << "3. For new platform HALs, add them to any framework compatibility matrix "
+               << "with FCM version >= " << matrix->level() << " where applicable.\n"
+               << "4. For device-specific HALs, add to DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE "
                << "or DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE.";
     }
     return {};

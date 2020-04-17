@@ -69,6 +69,10 @@ const Version &RuntimeInfo::bootAvbVersion() const {
     return mBootAvbVersion;
 }
 
+bool RuntimeInfo::isMainlineKernel() const {
+    return mIsMainline;
+}
+
 bool RuntimeInfo::checkCompatibility(const CompatibilityMatrix& mat, std::string* error,
                                      CheckFlags::Type flags) const {
     if (mat.mType != SchemaType::FRAMEWORK) {
@@ -91,7 +95,8 @@ bool RuntimeInfo::checkCompatibility(const CompatibilityMatrix& mat, std::string
     // HalManifest.device.mSepolicyVersion in HalManifest::checkCompatibility.
 
     if (flags.isKernelEnabled()) {
-        if (mKernel.getMatchedKernelRequirements(mat.framework.mKernels, kernelLevel(), error)
+        if (!isMainlineKernel() &&
+            mKernel.getMatchedKernelRequirements(mat.framework.mKernels, kernelLevel(), error)
                 .empty()) {
             return false;
         }
