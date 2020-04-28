@@ -19,7 +19,6 @@
 #include <iostream>
 #include <utility>
 
-#include <android-base/logging.h>
 #include <android-base/strings.h>
 
 #include "parse_string.h"
@@ -94,6 +93,12 @@ SchemaType CompatibilityMatrix::type() const {
 
 Level CompatibilityMatrix::level() const {
     return mLevel;
+}
+
+Version CompatibilityMatrix::getMinimumMetaVersion() const {
+    // TODO(b/62801658): this needs to depend on whether there are 1.1 requirements
+    // (e.g. required <xmlfile> entry)
+    return {1, 0};
 }
 
 status_t CompatibilityMatrix::fetchAllInformation(const FileSystem* fileSystem,
@@ -186,11 +191,6 @@ bool CompatibilityMatrix::addAllHalsAsOptional(CompatibilityMatrix* other, std::
                                      const std::string& interface,
                                      const std::string& instanceOrPattern, bool isRegex) {
             for (auto* existingHal : existingHals) {
-                // Ignore HALs with different format.
-                if (halToAdd.format != existingHal->format) {
-                    continue;
-                }
-
                 MatrixHal* splitInstance =
                     this->splitInstance(existingHal, interface, instanceOrPattern, isRegex);
                 if (splitInstance != nullptr) {
@@ -284,8 +284,6 @@ bool CompatibilityMatrix::addAllKernelsAsOptional(CompatibilityMatrix* other, st
             // This happens even when kernelToAdd.conditions() != existing.conditions().
             continue;
         }
-
-        (void)kernelToAdd.setSourceMatrixLevel(other->level());
 
         KernelVersion minLts = kernelToAdd.minLts();
         if (!addKernel(std::move(kernelToAdd), error)) {
@@ -449,12 +447,11 @@ bool CompatibilityMatrix::addAllAsOptional(Named<CompatibilityMatrix>* inputMatr
 }
 
 bool CompatibilityMatrix::forEachInstanceOfVersion(
-    HalFormat format, const std::string& package, const Version& expectVersion,
+    const std::string& package, const Version& expectVersion,
     const std::function<bool(const MatrixInstance&)>& func) const {
     for (const MatrixHal* hal : getHals(package)) {
         bool cont = hal->forEachInstance([&](const MatrixInstance& matrixInstance) {
-            if (matrixInstance.format() == format &&
-                matrixInstance.versionRange().contains(expectVersion)) {
+            if (matrixInstance.versionRange().contains(expectVersion)) {
                 return func(matrixInstance);
             }
             return true;
@@ -464,11 +461,11 @@ bool CompatibilityMatrix::forEachInstanceOfVersion(
     return true;
 }
 
-bool CompatibilityMatrix::matchInstance(HalFormat format, const std::string& halName,
-                                        const Version& version, const std::string& interfaceName,
+bool CompatibilityMatrix::matchInstance(const std::string& halName, const Version& version,
+                                        const std::string& interfaceName,
                                         const std::string& instance) const {
     bool found = false;
-    (void)forEachInstanceOfInterface(format, halName, version, interfaceName,
+    (void)forEachInstanceOfInterface(halName, version, interfaceName,
                                      [&found, &instance](const auto& e) {
                                          found |= (e.matchInstance(instance));
                                          return !found;  // if not found, continue
@@ -478,15 +475,6 @@ bool CompatibilityMatrix::matchInstance(HalFormat format, const std::string& hal
 
 std::string CompatibilityMatrix::getVendorNdkVersion() const {
     return type() == SchemaType::DEVICE ? device.mVendorNdk.version() : "";
-}
-
-Level CompatibilityMatrix::getSourceMatrixLevel(const MatrixKernel* matrixKernel) const {
-    CHECK(std::find_if(framework.mKernels.begin(), framework.mKernels.end(),
-                       [matrixKernel](const auto& e) { return &e == matrixKernel; }) !=
-          framework.mKernels.end());
-    Level ret = matrixKernel->getSourceMatrixLevel();
-    if (ret != Level::UNSPECIFIED) return ret;
-    return level();
 }
 
 } // namespace vintf

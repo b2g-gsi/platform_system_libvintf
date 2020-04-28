@@ -189,7 +189,8 @@ using Table = std::map<std::string, TableRow>;
 void insert(const HalManifest* manifest, Table* table, const RowMutator& mutate) {
     if (manifest == nullptr) return;
     manifest->forEachInstance([&](const auto& manifestInstance) {
-        std::string key = manifestInstance.description();
+        std::string key = toFQNameString(manifestInstance.package(), manifestInstance.version(),
+                                         manifestInstance.interface(), manifestInstance.instance());
         mutate(&(*table)[key]);
         return true;
     });
@@ -199,11 +200,12 @@ void insert(const CompatibilityMatrix* matrix, Table* table, const RowMutator& m
     if (matrix == nullptr) return;
     matrix->forEachInstance([&](const auto& matrixInstance) {
         for (auto minorVer = matrixInstance.versionRange().minMinor;
-             minorVer >= matrixInstance.versionRange().minMinor &&
-             minorVer <= matrixInstance.versionRange().maxMinor;
-             ++minorVer) {
-            Version version{matrixInstance.versionRange().majorVer, minorVer};
-            std::string key = matrixInstance.description(version);
+             minorVer <= matrixInstance.versionRange().maxMinor; ++minorVer) {
+            std::string key = toFQNameString(
+                matrixInstance.package(), Version{matrixInstance.versionRange().majorVer, minorVer},
+                matrixInstance.interface(),
+                matrixInstance.isRegex() ? matrixInstance.regexPattern()
+                                         : matrixInstance.exactInstance());
             auto it = table->find(key);
             if (it == table->end()) {
                 mutate(&(*table)[key]);

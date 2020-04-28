@@ -27,15 +27,5 @@ bool MatrixKernel::operator==(const MatrixKernel &other) const {
     return true;
 }
 
-bool MatrixKernel::setSourceMatrixLevel(Level level) {
-    if (mSourceMatrixLevel != Level::UNSPECIFIED) return false;
-    mSourceMatrixLevel = level;
-    return true;
-}
-
-Level MatrixKernel::getSourceMatrixLevel() const {
-    return mSourceMatrixLevel;
-}
-
 } // namespace vintf
 } // namespace android

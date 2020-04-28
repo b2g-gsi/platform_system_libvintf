@@ -18,13 +18,11 @@
 #define ANDROID_VINTF_VINTF_OBJECT_H_
 
 #include <memory>
-#include <optional>
 
 #include "CheckFlags.h"
 #include "CompatibilityMatrix.h"
 #include "FileSystem.h"
 #include "HalManifest.h"
-#include "KernelRequirement.h"
 #include "Named.h"
 #include "ObjectFactory.h"
 #include "PropertyFetcher.h"
@@ -61,10 +59,10 @@ class VintfObjectCompatibleTest;
  * An overall diagram of the public API:
  * VintfObject
  *   + GetDeviceHalManfiest
- *   |   + getHidlTransport
+ *   |   + getTransport
  *   |   + checkCompatibility
  *   + GetFrameworkHalManifest
- *   |   + getHidlTransport
+ *   |   + getTransport
  *   |   + checkCompatibility
  *   + GetRuntimeInfo
  *       + checkCompatibility
@@ -177,12 +175,6 @@ class VintfObject {
      *         < 0 if any error (mount partition fails, illformed XML, etc.)
      */
     int32_t checkDeprecation(std::string* error = nullptr);
-
-    /**
-     * Get requirements of the kernel (expressed in the framework compatibility matrix) that the
-     * running kernel is compatible with.
-     */
-    std::optional<KernelRequirement> getCompatibleKernelRequirement(std::string* error = nullptr);
 
    private:
     std::unique_ptr<FileSystem> mFileSystem;

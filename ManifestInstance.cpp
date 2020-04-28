@@ -23,8 +23,6 @@
 
 #include <utility>
 
-#include "parse_string.h"
-
 namespace android {
 namespace vintf {
 
@@ -88,37 +86,15 @@ bool ManifestInstance::operator<(const ManifestInstance& other) const {
     return mHalFormat < other.mHalFormat;
 }
 
-std::string ManifestInstance::getSimpleFqInstance() const {
+FqInstance ManifestInstance::getFqInstanceNoPackage() const {
     FqInstance e;
-    bool success = false;
-    switch (format()) {
-        case HalFormat::AIDL: {
-            // Hide fake version when printing human-readable message or to manifest XML.
-            success = e.setTo(interface(), instance());
-        } break;
-        case HalFormat::HIDL:
-            [[fallthrough]];
-        case HalFormat::NATIVE: {
-            success = e.setTo(version().majorVer, version().minorVer, interface(), instance());
-        } break;
-    }
+    bool success = e.setTo(version().majorVer, version().minorVer, interface(), instance());
 #ifndef LIBVINTF_TARGET
-    CHECK(success) << "Cannot get simple fqinstnance from '" << mFqInstance.string() << "'";
+    CHECK(success) << "Cannot remove package from '" << mFqInstance.string() << "'";
+#else
+    (void)success;
 #endif
-    return success ? e.string() : "";
-}
-
-std::string ManifestInstance::description() const {
-    switch (format()) {
-        case HalFormat::AIDL: {
-            return toAidlFqnameString(package(), interface(), instance());
-        } break;
-        case HalFormat::HIDL:
-            [[fallthrough]];
-        case HalFormat::NATIVE: {
-            return getFqInstance().string();
-        } break;
-    }
+    return e;
 }
 
 }  // namespace vintf

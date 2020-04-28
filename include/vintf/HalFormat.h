@@ -28,16 +28,14 @@ namespace vintf {
 enum class HalFormat : size_t {
     HIDL = 0,
     NATIVE,
-    AIDL,
 };
 
-// clang-format off
-static const std::array<std::string, 3> gHalFormatStrings = {
-    "hidl",
-    "native",
-    "aidl"
+static const std::array<std::string, 2> gHalFormatStrings = {
+    {
+        "hidl",
+        "native"
+    }
 };
-// clang-format on
 
 } // namespace vintf
 } // namespace android

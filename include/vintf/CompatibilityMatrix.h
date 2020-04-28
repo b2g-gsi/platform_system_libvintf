@@ -48,6 +48,7 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>, public XmlFileGroup<Mat
 
     SchemaType type() const;
     Level level() const;
+    Version getMinimumMetaVersion() const;
 
     // If the corresponding <xmlfile> with the given version exists, for the first match,
     // - Return the overridden <path> if it is present,
@@ -60,12 +61,11 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>, public XmlFileGroup<Mat
     // (Normally, version ranges do not overlap, and the only match is returned.)
     std::string getXmlSchemaPath(const std::string& xmlFileName, const Version& version) const;
 
-    std::string getVendorNdkVersion() const;
-
-   protected:
     bool forEachInstanceOfVersion(
-        HalFormat format, const std::string& package, const Version& expectVersion,
+        const std::string& package, const Version& expectVersion,
         const std::function<bool(const MatrixInstance&)>& func) const override;
+
+    std::string getVendorNdkVersion() const;
 
    private:
     // Add everything in inputMatrix to "this" as requirements.
@@ -132,12 +132,8 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>, public XmlFileGroup<Mat
 
     // Return whether instance is in "this"; that is, instance is in any <instance> tag or
     // matches any <regex-instance> tag.
-    bool matchInstance(HalFormat format, const std::string& halName, const Version& version,
+    bool matchInstance(const std::string& halName, const Version& version,
                        const std::string& interfaceName, const std::string& instance) const;
-
-    // Return the level of the matrixKernel object that it is originally from.
-    // Prerequisite: matrixKernel is in mKernels.
-    Level getSourceMatrixLevel(const MatrixKernel* matrixKernel) const;
 
     friend struct HalManifest;
     friend struct RuntimeInfo;
@@ -147,7 +143,6 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>, public XmlFileGroup<Mat
     friend struct DeviceCompatibilityMatrixCombineTest;
     friend class VintfObject;
     friend class AssembleVintfImpl;
-    friend class KernelInfo;
     friend bool operator==(const CompatibilityMatrix &, const CompatibilityMatrix &);
 
     SchemaType mType;

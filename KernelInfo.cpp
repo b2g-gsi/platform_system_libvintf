@@ -60,10 +60,10 @@ bool KernelInfo::matchKernelVersion(const KernelVersion& minLts) const {
            minLts.minorRev <= mVersion.minorRev;
 }
 
-std::vector<const MatrixKernel*> KernelInfo::getMatchedKernelRequirements(
-    const std::vector<MatrixKernel>& kernels, std::string* error) const {
-    std::vector<const MatrixKernel*> result;
+bool KernelInfo::matchKernelRequirements(const std::vector<MatrixKernel>& kernels,
+                                         std::string* error) const {
     bool foundMatchedKernelVersion = false;
+    bool foundMatchedConditions = false;
     for (const MatrixKernel& matrixKernel : kernels) {
         if (!matchKernelVersion(matrixKernel.minLts())) {
             continue;
@@ -73,10 +73,10 @@ std::vector<const MatrixKernel*> KernelInfo::getMatchedKernelRequirements(
         if (!matchKernelConfigs(matrixKernel.conditions(), error)) {
             continue;
         }
+        foundMatchedConditions = true;
         if (!matchKernelConfigs(matrixKernel.configs(), error)) {
-            return {};
+            return false;
         }
-        result.push_back(&matrixKernel);
     }
     if (!foundMatchedKernelVersion) {
         if (error != nullptr) {
@@ -86,21 +86,20 @@ std::vector<const MatrixKernel*> KernelInfo::getMatchedKernelRequirements(
             for (const MatrixKernel& matrixKernel : kernels) ss << " " << matrixKernel.minLts();
             *error = ss.str();
         }
-        return {};
+        return false;
     }
-    if (result.empty()) {
-        // This means matchKernelVersion passes but matchKernelConfigs(conditions) fails.
+    if (!foundMatchedConditions) {
         // This should not happen because first <conditions> for each <kernel> must be
         // empty. Reject here for inconsistency.
         if (error != nullptr) {
             error->insert(0, "Framework match kernel version with unmet conditions:");
         }
-        return {};
+        return false;
     }
     if (error != nullptr) {
         error->clear();
     }
-    return result;
+    return true;
 }
 
 bool KernelInfo::operator==(const KernelInfo& other) const {

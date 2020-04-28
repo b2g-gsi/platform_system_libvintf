@@ -22,10 +22,6 @@ cc_test {
         "LibVintfTest.cpp",
     ],
 
-    header_libs: [
-        "libvintf_local_headers",
-    ],
-
     shared_libs: [
         "libbase",
         "libcutils",
@@ -107,7 +103,7 @@ cc_test {
         "libhidl-gen-utils",
         "libfs_mgr",
         "liblp",
-        "libcrypto_static",
+        "libcrypto",
         "libcrypto_utils",
         "libext4_utils",
         "libcutils",

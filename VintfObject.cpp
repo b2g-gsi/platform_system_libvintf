@@ -697,7 +697,7 @@ bool VintfObject::IsInstanceDeprecated(const MatrixInstance& oldMatrixInstance,
         // Find any package@x.? in target matrix, and check if instance is in target matrix.
         bool foundInstance = false;
         Version targetMatrixMinVer;
-        targetMatrix.forEachHidlInstanceOfPackage(package, [&](const auto& targetMatrixInstance) {
+        targetMatrix.forEachInstanceOfPackage(package, [&](const auto& targetMatrixInstance) {
             if (targetMatrixInstance.versionRange().majorVer == version.majorVer &&
                 targetMatrixInstance.interface() == interface &&
                 targetMatrixInstance.matchInstance(servedInstance)) {
@@ -799,8 +799,7 @@ int32_t VintfObject::checkDeprecation(std::string* error) {
                           const std::vector<std::string>& /* hintInstances */) {
             std::vector<std::pair<std::string, Version>> ret;
             deviceManifest->forEachInstanceOfInterface(
-                HalFormat::HIDL, package, version, interface,
-                [&ret](const ManifestInstance& manifestInstance) {
+                package, version, interface, [&ret](const ManifestInstance& manifestInstance) {
                     ret.push_back(
                         std::make_pair(manifestInstance.instance(), manifestInstance.version()));
                     return true;
@@ -808,36 +807,6 @@ int32_t VintfObject::checkDeprecation(std::string* error) {
             return ret;
         };
     return checkDeprecation(inManifest, error);
-}
-
-std::optional<KernelRequirement> VintfObject::getCompatibleKernelRequirement(std::string* error) {
-    auto matrix = getFrameworkCompatibilityMatrix();
-    if (!matrix) {
-        if (error) *error = "Cannot retrieve framework compatibility matrix";
-        return std::nullopt;
-    }
-    auto runtime_info = getRuntimeInfo();
-    if (!runtime_info) {
-        if (error) *error = "Cannot retrieve runtime information";
-        return std::nullopt;
-    }
-    auto reqs =
-        runtime_info->mKernel.getMatchedKernelRequirements(matrix->framework.mKernels, error);
-    if (reqs.empty()) {
-        if (error) error->insert(0, "Cannot find any matched kernel requirements: ");
-        return std::nullopt;
-    }
-    for (const MatrixKernel* matrixKernel : reqs) {
-        if (matrixKernel->conditions().empty()) {
-            return KernelRequirement(matrixKernel->minLts(),
-                                     matrix->getSourceMatrixLevel(matrixKernel));
-        }
-    }
-    KernelRequirement ret(reqs[0]->minLts(), matrix->getSourceMatrixLevel(reqs[0]));
-    LOG(ERROR) << "Cannot find kernel requirement with empty conditions; "
-               << "this should not happen. Returning (" << ret.minLts() << ", " << ret.level()
-               << ") as a heuristic.";
-    return ret;
 }
 
 const std::unique_ptr<FileSystem>& VintfObject::getFileSystem() {

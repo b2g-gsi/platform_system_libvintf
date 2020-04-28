@@ -22,12 +22,11 @@
 #include <unistd.h>
 
 #include <android-base/strings.h>
-#include <hidl-util/FQName.h>
-
 #include <vintf/VintfObject.h>
 #include <vintf/parse_string.h>
-#include "test_constants.h"
 #include "utils-fake.h"
+
+#include <hidl-util/FQName.h>
 
 using namespace ::testing;
 
@@ -46,14 +45,12 @@ namespace testing {
 
 using namespace ::android::vintf::details;
 
-// clang-format off
-
 //
 // Set of Xml1 metadata compatible with each other.
 //
 
 const std::string systemMatrixXml1 =
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hardware.camera</name>\n"
     "        <version>2.0-5</version>\n"
@@ -80,7 +77,7 @@ const std::string systemMatrixXml1 =
     "</compatibility-matrix>\n";
 
 const std::string vendorManifestXml1 =
-    "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+    "<manifest version=\"1.0\" type=\"device\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.camera</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -120,7 +117,7 @@ const std::string vendorManifestXml1 =
     "</manifest>\n";
 
 const std::string systemManifestXml1 =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+    "<manifest version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hidl.manager</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -138,7 +135,7 @@ const std::string systemManifestXml1 =
     "</manifest>\n";
 
 const std::string vendorMatrixXml1 =
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"device\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"device\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hidl.manager</name>\n"
     "        <version>1.0</version>\n"
@@ -155,7 +152,7 @@ const std::string vendorMatrixXml1 =
 //
 
 const std::string systemMatrixXml2 =
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <version>1.0</version>\n"
@@ -172,7 +169,7 @@ const std::string systemMatrixXml2 =
     "</compatibility-matrix>\n";
 
 const std::string vendorManifestXml2 =
-    "<manifest " + kMetaVersionStr + " type=\"device\">"
+    "<manifest version=\"1.0\" type=\"device\">"
     "    <hal>"
     "        <name>android.hardware.foo</name>"
     "        <transport>hwbinder</transport>"
@@ -188,7 +185,7 @@ const std::string vendorManifestXml2 =
 //
 
 const std::string systemMatrixLevel1 =
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
     "    <hal format=\"hidl\" optional=\"true\">\n"
     "        <name>android.hardware.major</name>\n"
     "        <version>1.0</version>\n"
@@ -217,7 +214,7 @@ const std::string systemMatrixLevel1 =
     "</compatibility-matrix>\n";
 
 const std::string systemMatrixLevel2 =
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
     "    <hal format=\"hidl\" optional=\"true\">\n"
     "        <name>android.hardware.major</name>\n"
     "        <version>2.0</version>\n"
@@ -242,7 +239,7 @@ const std::string systemMatrixLevel2 =
 
 const static std::vector<std::string> systemMatrixRegexXmls = {
     // 1.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hardware.regex</name>\n"
     "        <version>1.0-1</version>\n"
@@ -256,7 +253,7 @@ const static std::vector<std::string> systemMatrixRegexXmls = {
     "    </hal>\n"
     "</compatibility-matrix>\n",
     // 2.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hardware.regex</name>\n"
     "        <version>1.1-2</version>\n"
@@ -270,7 +267,7 @@ const static std::vector<std::string> systemMatrixRegexXmls = {
     "    </hal>\n"
     "</compatibility-matrix>\n",
     // 3.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"3\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"3\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hardware.regex</name>\n"
     "        <version>2.0</version>\n"
@@ -290,7 +287,7 @@ const static std::vector<std::string> systemMatrixRegexXmls = {
 
 const std::vector<std::string> systemMatrixRequire = {
     // 1.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <version>1.0</version>\n"
@@ -301,7 +298,7 @@ const std::vector<std::string> systemMatrixRequire = {
     "    </hal>\n"
     "</compatibility-matrix>\n",
     // 2.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
     "    <hal format=\"hidl\" optional=\"false\">\n"
     "        <name>android.hardware.bar</name>\n"
     "        <version>1.0</version>\n"
@@ -313,7 +310,7 @@ const std::vector<std::string> systemMatrixRequire = {
     "</compatibility-matrix>\n"};
 
 const std::string vendorManifestRequire1 =
-    "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\">\n"
+    "<manifest version=\"1.0\" type=\"device\" target-level=\"1\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -322,7 +319,7 @@ const std::string vendorManifestRequire1 =
     "</manifest>\n";
 
 const std::string vendorManifestRequire2 =
-    "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"2\">\n"
+    "<manifest version=\"1.0\" type=\"device\" target-level=\"2\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.bar</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -335,7 +332,7 @@ const std::string vendorManifestRequire2 =
 //
 
 const std::string vendorManifestKernel318 =
-    "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+    "<manifest version=\"1.0\" type=\"device\">\n"
     "    <kernel version=\"3.18.999\" />\n"
     "    <sepolicy>\n"
     "        <version>25.5</version>\n"
@@ -343,7 +340,7 @@ const std::string vendorManifestKernel318 =
     "</manifest>\n";
 
 const std::string systemMatrixKernel318 =
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
     "    <kernel version=\"3.18.999\"></kernel>\n"
     "    <sepolicy>\n"
     "        <kernel-sepolicy-version>30</kernel-sepolicy-version>\n"
@@ -507,10 +504,6 @@ class VintfObjectTestBase : public ::testing::Test {
     // Access to private method.
     int checkCompatibility(const std::vector<std::string>& xmls, std::string* error) {
         return vintfObject->checkCompatibility(xmls, error);
-    }
-
-    MockRuntimeInfoFactory& runtimeInfoFactory() {
-        return static_cast<MockRuntimeInfoFactory&>(*vintfObject->getRuntimeInfoFactory());
     }
 
     std::string productModel;
@@ -695,6 +688,9 @@ class VintfObjectRuntimeInfoTest : public VintfObjectTestBase {
         Mock::VerifyAndClear(&runtimeInfoFactory());
         Mock::VerifyAndClear(runtimeInfoFactory().getInfo().get());
     }
+    MockRuntimeInfoFactory& runtimeInfoFactory() {
+        return static_cast<MockRuntimeInfoFactory&>(*vintfObject->getRuntimeInfoFactory());
+    }
 };
 
 TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
@@ -746,11 +742,11 @@ TEST_F(VintfObjectTest, FrameworkCompatibilityMatrixCombine) {
             return ::android::OK;
         }));
     expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml",
-                "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\"/>");
+                "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\"/>");
     expectFetch(kSystemVintfDir + "compatibility_matrix.empty.xml",
-                "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\"/>");
+                "<compatibility-matrix version=\"1.0\" type=\"framework\"/>");
     expectFileNotExist(StrEq(kProductMatrix));
-    expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" />\n");
+    expectFetch(kVendorManifest, "<manifest version=\"1.0\" type=\"device\" />\n");
     expectNeverFetch(kSystemLegacyMatrix);
 
     EXPECT_NE(nullptr, vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */));
@@ -767,11 +763,11 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
             return ::android::OK;
         }));
     expectFetch(kSystemVintfDir + "compatibility_matrix.1.xml",
-                "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\"/>");
+                "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\"/>");
     expectFetch(kSystemVintfDir + "compatibility_matrix.empty.xml",
-                "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\"/>");
+                "<compatibility-matrix version=\"1.0\" type=\"framework\"/>");
     expectFetch(kProductMatrix,
-                "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\">\n"
+                "<compatibility-matrix version=\"1.0\" type=\"framework\">\n"
                 "    <hal format=\"hidl\" optional=\"true\">\n"
                 "        <name>android.hardware.foo</name>\n"
                 "        <version>1.0</version>\n"
@@ -781,7 +777,7 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
                 "        </interface>\n"
                 "    </hal>\n"
                 "</compatibility-matrix>\n");
-    expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" />\n");
+    expectFetch(kVendorManifest, "<manifest version=\"1.0\" type=\"device\" />\n");
     expectNeverFetch(kSystemLegacyMatrix);
 
     auto fcm = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
@@ -790,7 +786,7 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
     FqInstance expectInstance;
     EXPECT_TRUE(expectInstance.setTo("android.hardware.foo@1.0::IFoo/default"));
     bool found = false;
-    fcm->forEachHidlInstance([&found, &expectInstance](const auto& matrixInstance) {
+    fcm->forEachInstance([&found, &expectInstance](const auto& matrixInstance) {
         found |= matrixInstance.isSatisfiedBy(expectInstance);
         return !found;  // continue if not found
     });
@@ -799,7 +795,7 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
 }
 
 const std::string vendorEtcManifest =
-    "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+    "<manifest version=\"1.0\" type=\"device\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -813,7 +809,7 @@ const std::string vendorEtcManifest =
     "</manifest>\n";
 
 const std::string vendorManifest =
-    "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+    "<manifest version=\"1.0\" type=\"device\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -826,7 +822,7 @@ const std::string vendorManifest =
     "</manifest>\n";
 
 const std::string odmProductManifest =
-    "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+    "<manifest version=\"1.0\" type=\"device\">\n"
     "    <hal format=\"hidl\" override=\"true\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -839,7 +835,7 @@ const std::string odmProductManifest =
     "</manifest>\n";
 
 const std::string odmManifest =
-    "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+    "<manifest version=\"1.0\" type=\"device\">\n"
     "    <hal format=\"hidl\" override=\"true\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -852,23 +848,23 @@ const std::string odmManifest =
     "</manifest>\n";
 
 bool containsVendorManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getHidlInstances("android.hardware.foo", {1, 0}, "IVendor").empty();
+    return !p->getInstances("android.hardware.foo", {1, 0}, "IVendor").empty();
 }
 
 bool containsVendorEtcManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getHidlInstances("android.hardware.foo", {2, 0}, "IVendorEtc").empty();
+    return !p->getInstances("android.hardware.foo", {2, 0}, "IVendorEtc").empty();
 }
 
 bool vendorEtcManifestOverridden(const std::shared_ptr<const HalManifest>& p) {
-    return p->getHidlInstances("android.hardware.foo", {1, 0}, "IVendorEtc").empty();
+    return p->getInstances("android.hardware.foo", {1, 0}, "IVendorEtc").empty();
 }
 
 bool containsOdmManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getHidlInstances("android.hardware.foo", {1, 1}, "IOdm").empty();
+    return !p->getInstances("android.hardware.foo", {1, 1}, "IOdm").empty();
 }
 
 bool containsOdmProductManifest(const std::shared_ptr<const HalManifest>& p) {
-    return !p->getHidlInstances("android.hardware.foo", {1, 1}, "IOdmProduct").empty();
+    return !p->getInstances("android.hardware.foo", {1, 1}, "IOdmProduct").empty();
 }
 
 class DeviceManifestTest : public VintfObjectTestBase {
@@ -1040,7 +1036,7 @@ class DeprecateTest : public VintfObjectTestBase {
         expectNeverFetch(kSystemLegacyMatrix);
 
         expectFetch(kVendorManifest,
-                    "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"2\"/>");
+                    "<manifest version=\"1.0\" type=\"device\" target-level=\"2\"/>");
         expectFileNotExist(StartsWith("/odm/"));
 
         // Update the device manifest cache because CheckDeprecate does not fetch
@@ -1152,7 +1148,7 @@ class MultiMatrixTest : public VintfObjectTestBase {
         expectFileNotExist(StartsWith("/odm/"));
     }
     void expectTargetFcmVersion(size_t level) {
-        expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
+        expectFetch(kVendorManifest, "<manifest version=\"1.0\" type=\"device\" target-level=\"" +
                                          to_string(static_cast<Level>(level)) + "\"/>");
         vintfObject->getDeviceHalManifest(true /* skipCache */);
     }
@@ -1344,18 +1340,18 @@ TEST_F(RegexTest, DeprecateLevel3) {
 
 const static std::vector<std::string> systemMatrixKernelXmls = {
     // 1.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"1\">\n"
     FAKE_KERNEL("1.0.0", "A1")
     FAKE_KERNEL("2.0.0", "B1")
     "</compatibility-matrix>\n",
     // 2.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"2\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"2\">\n"
     FAKE_KERNEL("2.0.0", "B2")
     FAKE_KERNEL("3.0.0", "C2")
     FAKE_KERNEL("4.0.0", "D2")
     "</compatibility-matrix>\n",
     // 3.xml
-    "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"3\">\n"
+    "<compatibility-matrix version=\"1.0\" type=\"framework\" level=\"3\">\n"
     FAKE_KERNEL("4.0.0", "D3")
     FAKE_KERNEL("5.0.0", "E3")
     "</compatibility-matrix>\n",
@@ -1436,7 +1432,7 @@ TEST_F(VintfObjectPartialUpdateTest, VendorOnlyCompatible) {
 }
 
 const std::string systemEtcManifest =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+    "<manifest version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -1445,7 +1441,7 @@ const std::string systemEtcManifest =
     "</manifest>\n";
 
 const std::string systemEtcManifestFrag =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+    "<manifest version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -1454,7 +1450,7 @@ const std::string systemEtcManifestFrag =
     "</manifest>\n";
 
 const std::string productEtcManifest =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+    "<manifest version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -1463,7 +1459,7 @@ const std::string productEtcManifest =
     "</manifest>\n";
 
 const std::string productEtcManifestFrag =
-    "<manifest " + kMetaVersionStr + " type=\"framework\">\n"
+    "<manifest version=\"1.0\" type=\"framework\">\n"
     "    <hal format=\"hidl\">\n"
     "        <name>android.hardware.foo</name>\n"
     "        <transport>hwbinder</transport>\n"
@@ -1541,7 +1537,7 @@ class FrameworkManifestTest : public VintfObjectTestBase,
     void expectContainsInterface(const std::string& interface, bool contains = true) {
         auto manifest = vintfObject->getFrameworkHalManifest();
         ASSERT_NE(nullptr, manifest);
-        EXPECT_NE(manifest->getHidlInstances("android.hardware.foo", {1, 0}, interface).empty(),
+        EXPECT_NE(manifest->getInstances("android.hardware.foo", {1, 0}, interface).empty(),
                   contains)
             << interface << " is missing.";
     }
@@ -1564,84 +1560,8 @@ TEST_P(FrameworkManifestTest, Existence) {
         expectContainsInterface("IProductEtcFragment", std::get<3>(GetParam()));
     }
 }
-INSTANTIATE_TEST_SUITE_P(Vintf, FrameworkManifestTest,
+INSTANTIATE_TEST_SUITE_P(, FrameworkManifestTest,
                          ::testing::Combine(Bool(), Bool(), Bool(), Bool()));
-
-class GetCompatibleKernelRequirementTest : public MultiMatrixTest {
-   protected:
-    void SetUp() override {
-        MultiMatrixTest::SetUp();
-        SetUpMockSystemMatrices(systemMatrixKernelXmls);
-        expectTargetFcmVersion(1);
-    }
-};
-
-TEST_F(GetCompatibleKernelRequirementTest, Version1) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 1}, {{"CONFIG_A1", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(1u, kreq->level());
-    EXPECT_EQ(KernelVersion(1, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, Version1Incompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({1, 0, 0}, {});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    EXPECT_FALSE(kreq.has_value())
-        << "Should be incompatible because CONFIG_A1 is missing, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, Version2) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 1}, {{"CONFIG_B1", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(1u, kreq->level());
-    EXPECT_EQ(KernelVersion(2, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, Version2FutureConfigIncompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({2, 0, 0}, {{"CONFIG_B2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    EXPECT_FALSE(kreq.has_value())
-        << "CONFIG_B2 is from 2.xml and should not be compatible, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrix) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({3, 0, 1}, {{"CONFIG_C2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(2u, kreq->level()) << "Should get 3.0.0 from 2.xml because 1.xml doesn't have 3.0.x";
-    EXPECT_EQ(KernelVersion(3, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromOldestMatrixPossible) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 1}, {{"CONFIG_D2", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(2u, kreq->level()) << "Should get 4.0.0 from 2.xml even though it exists in 3.xml";
-    EXPECT_EQ(KernelVersion(4, 0, 0), kreq->minLts());
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromNewerMatrixIncompat) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({4, 0, 0}, {{"CONFIG_D3", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_FALSE(kreq.has_value())
-        << "CONFIG_D3 is from 3.xml and should not be compatible, but get: (" << kreq->level()
-        << ", " << kreq->minLts() << ")";
-}
-
-TEST_F(GetCompatibleKernelRequirementTest, GetKernelReqFromEvenNewerMatrix) {
-    runtimeInfoFactory().getInfo()->setNextFetchKernelInfo({5, 0, 1}, {{"CONFIG_E3", "y"}});
-    auto kreq = vintfObject->getCompatibleKernelRequirement();
-    ASSERT_TRUE(kreq.has_value());
-    EXPECT_EQ(3u, kreq->level())
-        << "Should get 5.0.0 from 3.xml because neither 1.xml nor 2.xml has 5.0.x";
-    EXPECT_EQ(KernelVersion(5, 0, 0), kreq->minLts());
-}
-
-// clang-format on
 
 }  // namespace testing
 }  // namespace vintf

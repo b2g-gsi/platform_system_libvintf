@@ -108,12 +108,10 @@ class AssembleVintfImpl : public AssembleVintf {
 
     /**
      * Set *out to environment variable only if *out is a dummy value (i.e. default constructed).
-     * Return false if a fatal error has occurred:
-     * - The environment variable has an unknown format
-     * - The value of the environment variable does not match a predefined variable in the files
+     * Return true if *out is set to environment variable, otherwise false.
      */
     template <typename T>
-    bool getFlagIfUnset(const std::string& envKey, T* out) const {
+    bool getFlagIfUnset(const std::string& envKey, T* out, bool log = true) const {
         bool hasExistingValue = !(*out == T{});
 
         bool hasEnvValue = false;
@@ -121,23 +119,29 @@ class AssembleVintfImpl : public AssembleVintf {
         std::string envStrValue = getEnv(envKey);
         if (!envStrValue.empty()) {
             if (!parse(envStrValue, &envValue)) {
-                std::cerr << "Cannot parse " << envValue << "." << std::endl;
+                if (log) {
+                    std::cerr << "Cannot parse " << envValue << "." << std::endl;
+                }
                 return false;
             }
             hasEnvValue = true;
         }
 
         if (hasExistingValue) {
-            if (hasEnvValue && (*out != envValue)) {
-                std::cerr << "Cannot override existing value " << *out << " with " << envKey
-                          << " (which is " << envValue << ")." << std::endl;
-                return false;
+            if (hasEnvValue && log) {
+                std::cerr << "Warning: cannot override existing value " << *out << " with "
+                          << envKey << " (which is " << envValue << ")." << std::endl;
             }
-            return true;
+            return false;
         }
-        if (hasEnvValue) {
-            *out = envValue;
+        if (!hasEnvValue) {
+            if (log) {
+                std::cerr << "Warning: " << envKey << " is not specified. Default to " << T{} << "."
+                          << std::endl;
+            }
+            return false;
         }
+        *out = envValue;
         return true;
     }
 
@@ -361,9 +365,7 @@ class AssembleVintfImpl : public AssembleVintf {
         }
 
         if (halManifest->mType == SchemaType::DEVICE) {
-            if (!getFlagIfUnset("BOARD_SEPOLICY_VERS", &halManifest->device.mSepolicyVersion)) {
-                return false;
-            }
+            (void)getFlagIfUnset("BOARD_SEPOLICY_VERS", &halManifest->device.mSepolicyVersion);
 
             if (!setDeviceFcmVersion(halManifest)) {
                 return false;
@@ -582,13 +584,10 @@ class AssembleVintfImpl : public AssembleVintf {
                                                                                 v.minorVer);
             }
 
-            if (!getFlagIfUnset("POLICYVERS",
-                                &matrix->framework.mSepolicy.mKernelSepolicyVersion)) {
-                return false;
-            }
-            if (!getFlagIfUnset("FRAMEWORK_VBMETA_VERSION", &matrix->framework.mAvbMetaVersion)) {
-                return false;
-            }
+            getFlagIfUnset("POLICYVERS", &matrix->framework.mSepolicy.mKernelSepolicyVersion,
+                           false /* log */);
+            getFlagIfUnset("FRAMEWORK_VBMETA_VERSION", &matrix->framework.mAvbMetaVersion,
+                           false /* log */);
             // Hard-override existing AVB version
             getFlag("FRAMEWORK_VBMETA_VERSION_OVERRIDE", &matrix->framework.mAvbMetaVersion,
                     false /* log */);
