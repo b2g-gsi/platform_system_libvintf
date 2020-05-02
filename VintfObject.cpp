@@ -48,20 +48,24 @@ static constexpr bool kIsTarget = false;
 #endif
 
 template <typename T, typename F>
-static std::shared_ptr<const T> Get(
-        LockedSharedPtr<T> *ptr,
-        bool skipCache,
-        const F &fetchAllInformation) {
+static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr, bool skipCache,
+                                    const F& fetchAllInformation) {
     std::unique_lock<std::mutex> _lock(ptr->mutex);
     if (skipCache || !ptr->fetchedOnce) {
+        LOG(INFO) << id << ": Reading VINTF information.";
         ptr->object = std::make_unique<T>();
         std::string error;
         status_t status = fetchAllInformation(ptr->object.get(), &error);
-        if (status != OK) {
-            LOG(WARNING) << status << " VINTF parse error: " << error;
+        if (status == OK) {
+            ptr->fetchedOnce = true;
+            LOG(INFO) << id << ": Successfully processed VINTF information";
+        } else {
+            // Doubled because a malformed error std::string might cause us to
+            // lose the status.
+            LOG(ERROR) << id << ": status from fetching VINTF information: " << status;
+            LOG(ERROR) << id << ": " << status << " VINTF parse error: " << error;
             ptr->object = nullptr; // frees the old object
         }
-        ptr->fetchedOnce = true;
     }
     return ptr->object;
 }
@@ -100,7 +104,7 @@ std::shared_ptr<const HalManifest> VintfObject::GetDeviceHalManifest(bool skipCa
 }
 
 std::shared_ptr<const HalManifest> VintfObject::getDeviceHalManifest(bool skipCache) {
-    return Get(&mDeviceManifest, skipCache,
+    return Get(__func__, &mDeviceManifest, skipCache,
                std::bind(&VintfObject::fetchDeviceHalManifest, this, _1, _2));
 }
 
@@ -109,7 +113,7 @@ std::shared_ptr<const HalManifest> VintfObject::GetFrameworkHalManifest(bool ski
 }
 
 std::shared_ptr<const HalManifest> VintfObject::getFrameworkHalManifest(bool skipCache) {
-    return Get(&mFrameworkManifest, skipCache,
+    return Get(__func__, &mFrameworkManifest, skipCache,
                std::bind(&VintfObject::fetchFrameworkHalManifest, this, _1, _2));
 }
 
@@ -119,7 +123,8 @@ std::shared_ptr<const CompatibilityMatrix> VintfObject::GetDeviceCompatibilityMa
 
 std::shared_ptr<const CompatibilityMatrix> VintfObject::getDeviceCompatibilityMatrix(
     bool skipCache) {
-    return Get(&mDeviceMatrix, skipCache, std::bind(&VintfObject::fetchDeviceMatrix, this, _1, _2));
+    return Get(__func__, &mDeviceMatrix, skipCache,
+               std::bind(&VintfObject::fetchDeviceMatrix, this, _1, _2));
 }
 
 std::shared_ptr<const CompatibilityMatrix> VintfObject::GetFrameworkCompatibilityMatrix(bool skipCache) {
@@ -134,13 +139,13 @@ std::shared_ptr<const CompatibilityMatrix> VintfObject::getFrameworkCompatibilit
     std::unique_lock<std::mutex> _lock(mFrameworkCompatibilityMatrixMutex);
 
     auto combined =
-        Get(&mCombinedFrameworkMatrix, skipCache,
+        Get(__func__, &mCombinedFrameworkMatrix, skipCache,
             std::bind(&VintfObject::getCombinedFrameworkMatrix, this, deviceManifest, _1, _2));
     if (combined != nullptr) {
         return combined;
     }
 
-    return Get(&mFrameworkMatrix, skipCache,
+    return Get(__func__, &mFrameworkMatrix, skipCache,
                std::bind(&CompatibilityMatrix::fetchAllInformation, _1, getFileSystem().get(),
                          kSystemLegacyMatrix, _2));
 }
