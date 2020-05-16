@@ -354,8 +354,10 @@ class AssembleVintfImpl : public AssembleVintf {
         if (manifest->level() == Level::UNSPECIFIED) return;
         // target FCM version < R: leave value untouched.
         if (manifest->level() < Level::R) return;
-        // No need to infer when <kernel> tag is missing.
-        if (!manifest->kernel().has_value()) return;
+        // Inject empty <kernel> tag if missing.
+        if (!manifest->kernel().has_value()) {
+            manifest->device.mKernel = std::make_optional<KernelInfo>();
+        }
         // Kernel FCM already set.
         if (manifest->kernel()->level() != Level::UNSPECIFIED) return;
 
