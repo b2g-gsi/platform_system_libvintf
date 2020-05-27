@@ -38,6 +38,7 @@ enum Level : size_t {
     P = 3,
     Q = 4,
     R = 5,
+    S = 6,
     // For older manifests and compatibility matrices, "level" is not specified.
     UNSPECIFIED = SIZE_MAX,
 };

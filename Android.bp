@@ -138,6 +138,9 @@ cc_library_static {
         "libvintf",
         "libbase",
     ],
+    static_libs: [
+        "libvts_vintf_test_common",
+    ],
     srcs: [
         "AssembleVintf.cpp",
     ],
@@ -153,6 +156,7 @@ cc_binary_host {
     ],
     static_libs: [
         "libassemblevintf",
+        "libvts_vintf_test_common",
     ],
     srcs: [
         "assemble_vintf_main.cpp"

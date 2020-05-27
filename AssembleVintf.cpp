@@ -26,7 +26,7 @@
 #include <android-base/file.h>
 #include <android-base/parseint.h>
 #include <android-base/strings.h>
-
+#include <libvts_vintf_test_common/common.h>
 #include <vintf/AssembleVintf.h>
 #include <vintf/KernelConfigParser.h>
 #include <vintf/parse_string.h>
@@ -354,8 +354,10 @@ class AssembleVintfImpl : public AssembleVintf {
         if (manifest->level() == Level::UNSPECIFIED) return;
         // target FCM version < R: leave value untouched.
         if (manifest->level() < Level::R) return;
-        // No need to infer when <kernel> tag is missing.
-        if (!manifest->kernel().has_value()) return;
+        // Inject empty <kernel> tag if missing.
+        if (!manifest->kernel().has_value()) {
+            manifest->device.mKernel = std::make_optional<KernelInfo>();
+        }
         // Kernel FCM already set.
         if (manifest->kernel()->level() != Level::UNSPECIFIED) return;
 
@@ -481,6 +483,11 @@ class AssembleVintfImpl : public AssembleVintf {
         size_t shippingApiLevel = getIntegerFlag("PRODUCT_SHIPPING_API_LEVEL");
 
         if (manifest->level() != Level::UNSPECIFIED) {
+            if (shippingApiLevel != 0) {
+                auto res = android::vintf::testing::TestTargetFcmVersion(manifest->level(),
+                                                                         shippingApiLevel);
+                if (!res.ok()) std::cerr << "Warning: " << res.error() << std::endl;
+            }
             return true;
         }
         if (!getBooleanFlag("PRODUCT_ENFORCE_VINTF_MANIFEST")) {
