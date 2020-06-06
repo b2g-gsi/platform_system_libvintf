@@ -19,9 +19,7 @@
 
 #include <dirent.h>
 
-#include <fstream>
-#include <iostream>
-#include <sstream>
+#include <android-base/file.h>
 
 namespace android {
 namespace vintf {
@@ -29,22 +27,13 @@ namespace details {
 
 status_t FileSystemImpl::fetch(const std::string& path, std::string* fetched,
                                std::string* error) const {
-    std::ifstream in;
-
-    errno = 0;
-    in.open(path);
-    if (!in || errno != 0) {
+    if (!android::base::ReadFileToString(path, fetched, true /* follow_symlinks */)) {
         if (error) {
-            *error = "Cannot open " + path + ": " + strerror(errno);
+            *error = "Cannot read " + path + ": " + strerror(errno);
         }
-        return -errno;
+        return errno == 0 ? UNKNOWN_ERROR : -errno;
     }
-
-    std::stringstream ss;
-    ss << in.rdbuf();
-    *fetched = ss.str();
-
-    return -errno;
+    return OK;
 }
 
 status_t FileSystemImpl::listFiles(const std::string& path, std::vector<std::string>* out,
