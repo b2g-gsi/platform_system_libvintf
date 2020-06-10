@@ -36,6 +36,7 @@ cc_test {
         "libgtest",
         "libassemblevintf",
         "libhidl-gen-utils",
+        "libvts_vintf_test_common",
     ],
 
     cflags: [
