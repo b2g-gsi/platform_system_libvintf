@@ -109,7 +109,7 @@ class AssembleVintfImpl : public AssembleVintf {
     }
 
     /**
-     * Set *out to environment variable only if *out is a dummy value (i.e. default constructed).
+     * Set *out to environment variable only if *out is default constructed.
      * Return false if a fatal error has occurred:
      * - The environment variable has an unknown format
      * - The value of the environment variable does not match a predefined variable in the files

@@ -552,25 +552,18 @@ TEST_F(VintfObjectRuntimeInfoTest, GetRuntimeInfo) {
     EXPECT_CALL(*runtimeInfoFactory().getInfo(),
                 fetchAllInformation(RuntimeInfo::FetchFlag::CPU_VERSION));
     EXPECT_CALL(*runtimeInfoFactory().getInfo(), fetchAllInformation(RuntimeInfo::FetchFlag::NONE));
-    EXPECT_CALL(*runtimeInfoFactory().getInfo(),
-                fetchAllInformation(RuntimeInfo::FetchFlag::CPU_VERSION));
     EXPECT_CALL(
         *runtimeInfoFactory().getInfo(),
         fetchAllInformation(allExceptKernelFcm & ~RuntimeInfo::FetchFlag::CPU_VERSION));
-    EXPECT_CALL(*runtimeInfoFactory().getInfo(), fetchAllInformation(allExceptKernelFcm));
     EXPECT_CALL(*runtimeInfoFactory().getInfo(), fetchAllInformation(RuntimeInfo::FetchFlag::NONE));
 
-    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(
                                                    RuntimeInfo::FetchFlag::CPU_VERSION));
-    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(
                                                    RuntimeInfo::FetchFlag::CPU_VERSION));
-    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(true /* skipCache */,
-                                                   RuntimeInfo::FetchFlag::CPU_VERSION));
-    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(
                                                    RuntimeInfo::FetchFlag::ALL));
-    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(true /* skipCache */,
-                                                   RuntimeInfo::FetchFlag::ALL));
-    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(false /* skipCache */,
+    EXPECT_NE(nullptr, vintfObject->getRuntimeInfo(
                                                    RuntimeInfo::FetchFlag::ALL));
 }
 
@@ -605,7 +598,7 @@ TEST_F(VintfObjectTest, FrameworkCompatibilityMatrixCombine) {
     expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" />\n");
     expectNeverFetch(kSystemLegacyMatrix);
 
-    EXPECT_NE(nullptr, vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */));
+    EXPECT_NE(nullptr, vintfObject->getFrameworkCompatibilityMatrix());
 }
 
 // Test product compatibility matrix is fetched
@@ -641,7 +634,7 @@ TEST_F(VintfObjectTest, ProductCompatibilityMatrix) {
     expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" />\n");
     expectNeverFetch(kSystemLegacyMatrix);
 
-    auto fcm = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
+    auto fcm = vintfObject->getFrameworkCompatibilityMatrix();
     ASSERT_NE(nullptr, fcm);
 
     FqInstance expectInstance;
@@ -740,7 +733,7 @@ class DeviceManifestTest : public VintfObjectTestBase {
     }
     void noOdmManifest() { expectFileNotExist(StartsWith("/odm/")); }
     std::shared_ptr<const HalManifest> get() {
-        return vintfObject->getDeviceHalManifest(true /* skipCache */);
+        return vintfObject->getDeviceHalManifest();
     }
 };
 
@@ -812,7 +805,7 @@ class OdmManifestTest : public VintfObjectTestBase,
             .WillByDefault(Return(productModel));
     }
     std::shared_ptr<const HalManifest> get() {
-        return vintfObject->getDeviceHalManifest(true /* skipCache */);
+        return vintfObject->getDeviceHalManifest();
     }
     std::string productModel;
 };
@@ -900,7 +893,7 @@ class DeprecateTest : public VintfObjectTestBase {
 
         // Update the device manifest cache because CheckDeprecate does not fetch
         // device manifest again if cache exist.
-        vintfObject->getDeviceHalManifest(true /* skipCache */);
+        vintfObject->getDeviceHalManifest();
     }
 
 };
@@ -1039,7 +1032,7 @@ class MultiMatrixTest : public VintfObjectTestBase {
     void expectTargetFcmVersion(size_t level) {
         expectFetch(kVendorManifest, "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"" +
                                          to_string(static_cast<Level>(level)) + "\"/>");
-        vintfObject->getDeviceHalManifest(true /* skipCache */);
+        vintfObject->getDeviceHalManifest();
     }
 };
 
@@ -1053,7 +1046,7 @@ class RegexTest : public MultiMatrixTest {
 
 TEST_F(RegexTest, CombineLevel1) {
     expectTargetFcmVersion(1);
-    auto matrix = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
+    auto matrix = vintfObject->getFrameworkCompatibilityMatrix();
     ASSERT_NE(nullptr, matrix);
     std::string xml = gCompatibilityMatrixConverter(*matrix);
 
@@ -1108,7 +1101,7 @@ TEST_F(RegexTest, CombineLevel1) {
 
 TEST_F(RegexTest, CombineLevel2) {
     expectTargetFcmVersion(2);
-    auto matrix = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
+    auto matrix = vintfObject->getFrameworkCompatibilityMatrix();
     ASSERT_NE(nullptr, matrix);
     std::string xml = gCompatibilityMatrixConverter(*matrix);
 
@@ -1275,7 +1268,7 @@ TEST_F(KernelTest, Level1AndLevel2) {
     SetUpMockSystemMatrices({systemMatrixKernelXmls[0], systemMatrixKernelXmls[1]});
 
     expectTargetFcmVersion(1);
-    auto matrix = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
+    auto matrix = vintfObject->getFrameworkCompatibilityMatrix();
     ASSERT_NE(nullptr, matrix);
     std::string xml = gCompatibilityMatrixConverter(*matrix);
 
@@ -1293,7 +1286,7 @@ TEST_F(KernelTest, Level1AndMore) {
     SetUpMockSystemMatrices({systemMatrixKernelXmls});
 
     expectTargetFcmVersion(1);
-    auto matrix = vintfObject->getFrameworkCompatibilityMatrix(true /* skipCache */);
+    auto matrix = vintfObject->getFrameworkCompatibilityMatrix();
     ASSERT_NE(nullptr, matrix);
     std::string xml = gCompatibilityMatrixConverter(*matrix);
 

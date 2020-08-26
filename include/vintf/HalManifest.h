@@ -211,6 +211,10 @@ struct HalManifest : public HalGroup<ManifestHal>,
     // True if kernel()->checkCompatibility can be called.
     bool shouldCheckKernelCompatibility() const;
 
+    // Helper for shouldAdd(). Check if |hal| has a conflicting major version with this. Return
+    // false if hal should not be added, and set |error| accordingly. Return true if check passes.
+    bool addingConflictingMajorVersion(const ManifestHal& hal, std::string* error) const;
+
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;
 

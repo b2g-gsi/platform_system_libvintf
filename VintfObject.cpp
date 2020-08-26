@@ -48,10 +48,10 @@ static constexpr bool kIsTarget = false;
 #endif
 
 template <typename T, typename F>
-static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr, bool skipCache,
+static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr,
                                     const F& fetchAllInformation) {
     std::unique_lock<std::mutex> _lock(ptr->mutex);
-    if (skipCache || !ptr->fetchedOnce) {
+    if (!ptr->fetchedOnce) {
         LOG(INFO) << id << ": Reading VINTF information.";
         ptr->object = std::make_unique<T>();
         std::string error;
@@ -99,53 +99,50 @@ std::shared_ptr<VintfObject> VintfObject::GetInstance() {
     return sInstance.object;
 }
 
-std::shared_ptr<const HalManifest> VintfObject::GetDeviceHalManifest(bool skipCache) {
-    return GetInstance()->getDeviceHalManifest(skipCache);
+std::shared_ptr<const HalManifest> VintfObject::GetDeviceHalManifest() {
+    return GetInstance()->getDeviceHalManifest();
 }
 
-std::shared_ptr<const HalManifest> VintfObject::getDeviceHalManifest(bool skipCache) {
-    return Get(__func__, &mDeviceManifest, skipCache,
+std::shared_ptr<const HalManifest> VintfObject::getDeviceHalManifest() {
+    return Get(__func__, &mDeviceManifest,
                std::bind(&VintfObject::fetchDeviceHalManifest, this, _1, _2));
 }
 
-std::shared_ptr<const HalManifest> VintfObject::GetFrameworkHalManifest(bool skipCache) {
-    return GetInstance()->getFrameworkHalManifest(skipCache);
+std::shared_ptr<const HalManifest> VintfObject::GetFrameworkHalManifest() {
+    return GetInstance()->getFrameworkHalManifest();
 }
 
-std::shared_ptr<const HalManifest> VintfObject::getFrameworkHalManifest(bool skipCache) {
-    return Get(__func__, &mFrameworkManifest, skipCache,
+std::shared_ptr<const HalManifest> VintfObject::getFrameworkHalManifest() {
+    return Get(__func__, &mFrameworkManifest,
                std::bind(&VintfObject::fetchFrameworkHalManifest, this, _1, _2));
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::GetDeviceCompatibilityMatrix(bool skipCache) {
-    return GetInstance()->getDeviceCompatibilityMatrix(skipCache);
+std::shared_ptr<const CompatibilityMatrix> VintfObject::GetDeviceCompatibilityMatrix() {
+    return GetInstance()->getDeviceCompatibilityMatrix();
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::getDeviceCompatibilityMatrix(
-    bool skipCache) {
-    return Get(__func__, &mDeviceMatrix, skipCache,
-               std::bind(&VintfObject::fetchDeviceMatrix, this, _1, _2));
+std::shared_ptr<const CompatibilityMatrix> VintfObject::getDeviceCompatibilityMatrix() {
+    return Get(__func__, &mDeviceMatrix, std::bind(&VintfObject::fetchDeviceMatrix, this, _1, _2));
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::GetFrameworkCompatibilityMatrix(bool skipCache) {
-    return GetInstance()->getFrameworkCompatibilityMatrix(skipCache);
+std::shared_ptr<const CompatibilityMatrix> VintfObject::GetFrameworkCompatibilityMatrix() {
+    return GetInstance()->getFrameworkCompatibilityMatrix();
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::getFrameworkCompatibilityMatrix(
-    bool skipCache) {
+std::shared_ptr<const CompatibilityMatrix> VintfObject::getFrameworkCompatibilityMatrix() {
     // To avoid deadlock, get device manifest before any locks.
     auto deviceManifest = getDeviceHalManifest();
 
     std::unique_lock<std::mutex> _lock(mFrameworkCompatibilityMatrixMutex);
 
     auto combined =
-        Get(__func__, &mCombinedFrameworkMatrix, skipCache,
+        Get(__func__, &mCombinedFrameworkMatrix,
             std::bind(&VintfObject::getCombinedFrameworkMatrix, this, deviceManifest, _1, _2));
     if (combined != nullptr) {
         return combined;
     }
 
-    return Get(__func__, &mFrameworkMatrix, skipCache,
+    return Get(__func__, &mFrameworkMatrix,
                std::bind(&CompatibilityMatrix::fetchAllInformation, _1, getFileSystem().get(),
                          kSystemLegacyMatrix, _2));
 }
@@ -499,17 +496,14 @@ status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<CompatibilityMatri
     return OK;
 }
 
-std::shared_ptr<const RuntimeInfo> VintfObject::GetRuntimeInfo(bool skipCache,
-                                                               RuntimeInfo::FetchFlags flags) {
-    return GetInstance()->getRuntimeInfo(skipCache, flags);
+std::shared_ptr<const RuntimeInfo> VintfObject::GetRuntimeInfo(RuntimeInfo::FetchFlags flags) {
+    return GetInstance()->getRuntimeInfo(flags);
 }
-std::shared_ptr<const RuntimeInfo> VintfObject::getRuntimeInfo(bool skipCache,
-                                                               RuntimeInfo::FetchFlags flags) {
+std::shared_ptr<const RuntimeInfo> VintfObject::getRuntimeInfo(RuntimeInfo::FetchFlags flags) {
     std::unique_lock<std::mutex> _lock(mDeviceRuntimeInfo.mutex);
 
-    if (!skipCache) {
-        flags &= (~mDeviceRuntimeInfo.fetchedFlags);
-    }
+    // Skip fetching information that has already been fetched previously.
+    flags &= (~mDeviceRuntimeInfo.fetchedFlags);
 
     if (mDeviceRuntimeInfo.object == nullptr) {
         mDeviceRuntimeInfo.object = getRuntimeInfoFactory()->make_shared();

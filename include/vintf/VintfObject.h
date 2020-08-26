@@ -92,20 +92,19 @@ class VintfObject {
      * Return the API that access the device-side HAL manifests built from component pieces on the
      * vendor partition.
      */
-    virtual std::shared_ptr<const HalManifest> getDeviceHalManifest(bool skipCache = false);
+    virtual std::shared_ptr<const HalManifest> getDeviceHalManifest();
 
     /*
      * Return the API that access the framework-side HAL manifest built from component pieces on the
      * system partition.
      */
-    virtual std::shared_ptr<const HalManifest> getFrameworkHalManifest(bool skipCache = false);
+    virtual std::shared_ptr<const HalManifest> getFrameworkHalManifest();
 
     /*
      * Return the API that access the device-side compatibility matrix built from component pieces
      * on the vendor partition.
      */
-    virtual std::shared_ptr<const CompatibilityMatrix> getDeviceCompatibilityMatrix(
-        bool skipCache = false);
+    virtual std::shared_ptr<const CompatibilityMatrix> getDeviceCompatibilityMatrix();
 
     /*
      * Return the API that access the framework-side compatibility matrix built from component
@@ -114,8 +113,7 @@ class VintfObject {
      * This automatically selects the right compatibility matrix according to the target-level
      * specified by the device.
      */
-    virtual std::shared_ptr<const CompatibilityMatrix> getFrameworkCompatibilityMatrix(
-        bool skipCache = false);
+    virtual std::shared_ptr<const CompatibilityMatrix> getFrameworkCompatibilityMatrix();
 
     /*
      * Return the API that access device runtime info.
@@ -131,7 +129,7 @@ class VintfObject {
      * @param flags bitwise-or of RuntimeInfo::FetchFlag
      */
     std::shared_ptr<const RuntimeInfo> getRuntimeInfo(
-        bool skipCache = false, RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
+        RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
 
     /**
      * Check compatibility on the device.
@@ -266,27 +264,25 @@ class VintfObject {
      * Return the API that access the device-side HAL manifest built from component pieces on the
      * vendor partition.
      */
-    static std::shared_ptr<const HalManifest> GetDeviceHalManifest(bool skipCache = false);
+    static std::shared_ptr<const HalManifest> GetDeviceHalManifest();
 
     /*
      * Return the API that access the framework-side HAL manifest built from component pieces on the
      * system partition.
      */
-    static std::shared_ptr<const HalManifest> GetFrameworkHalManifest(bool skipCache = false);
+    static std::shared_ptr<const HalManifest> GetFrameworkHalManifest();
 
     /*
      * Return the API that access the device-side compatibility matrix built from component pieces
      * on the vendor partition.
      */
-    static std::shared_ptr<const CompatibilityMatrix> GetDeviceCompatibilityMatrix(
-        bool skipCache = false);
+    static std::shared_ptr<const CompatibilityMatrix> GetDeviceCompatibilityMatrix();
 
     /*
      * Return the API that access the framework-side compatibility matrix built from component
      * pieces on the system partition.
      */
-    static std::shared_ptr<const CompatibilityMatrix> GetFrameworkCompatibilityMatrix(
-        bool skipCache = false);
+    static std::shared_ptr<const CompatibilityMatrix> GetFrameworkCompatibilityMatrix();
 
     /*
      * Return the API that access device runtime info.
@@ -302,7 +298,7 @@ class VintfObject {
      * @param flags bitwise-or of RuntimeInfo::FetchFlag
      */
     static std::shared_ptr<const RuntimeInfo> GetRuntimeInfo(
-        bool skipCache = false, RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
+        RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);
 
    private:
     status_t getCombinedFrameworkMatrix(const std::shared_ptr<const HalManifest>& deviceManifest,

@@ -3930,6 +3930,31 @@ TEST_F(LibVintfTest, AidlGetHalNamesAndVersions) {
     EXPECT_EQ("android.system.foo", *names.begin());
 }
 
+TEST_F(LibVintfTest, ManifestAddAidl) {
+    std::string head =
+            "<manifest " + kMetaVersionStr + " type=\"device\">\n"
+            "    <hal format=\"aidl\">\n"
+            "        <name>android.hardware.foo</name>\n"
+            "        <fqname>";
+    std::string tail =
+            "</fqname>\n"
+            "    </hal>\n"
+            "</manifest>\n";
+
+    std::string xml1 = head + "IFoo/default" + tail;
+    std::string xml2 = head + "IFoo/another" + tail;
+
+    std::string error;
+    HalManifest manifest1;
+    manifest1.setFileName("1.xml");
+    ASSERT_TRUE(gHalManifestConverter(&manifest1, xml1, &error)) << error;
+    HalManifest manifest2;
+    manifest2.setFileName("2.xml");
+    ASSERT_TRUE(gHalManifestConverter(&manifest2, xml2, &error)) << error;
+
+    ASSERT_TRUE(manifest1.addAll(&manifest2, &error)) << error;
+}
+
 TEST_F(LibVintfTest, KernelInfoLevel) {
     std::string error;
     std::string xml = "<kernel version=\"3.18.31\" target-level=\"1\"/>\n";
