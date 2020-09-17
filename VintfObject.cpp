@@ -23,12 +23,14 @@
 #include <memory>
 #include <mutex>
 
+#include <aidl/metadata.h>
 #include <android-base/logging.h>
 #include <android-base/result.h>
 #include <android-base/strings.h>
 #include <hidl/metadata.h>
 
 #include "CompatibilityMatrix.h"
+#include "constants-private.h"
 #include "parse_string.h"
 #include "parse_xml.h"
 #include "utils.h"
@@ -64,7 +66,7 @@ static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr,
             // lose the status.
             LOG(ERROR) << id << ": status from fetching VINTF information: " << status;
             LOG(ERROR) << id << ": " << status << " VINTF parse error: " << error;
-            ptr->object = nullptr; // frees the old object
+            ptr->object = nullptr;  // frees the old object
         }
     }
     return ptr->object;
@@ -975,6 +977,130 @@ android::base::Result<void> VintfObject::checkUnusedHals(
     return {};
 }
 
+namespace {
+
+// Insert |name| into |ret| if shouldCheck(name).
+void InsertIf(const std::string& name, const std::function<bool(const std::string&)>& shouldCheck,
+              std::set<std::string>* ret) {
+    if (shouldCheck(name)) ret->insert(name);
+}
+
+std::string StripHidlInterface(const std::string& fqNameString) {
+    FQName fqName;
+    if (!fqName.setTo(fqNameString)) {
+        return "";
+    }
+    return fqName.getPackageAndVersion().string();
+}
+
+std::string StripAidlType(const std::string& type) {
+    auto items = android::base::Split(type, ".");
+    if (items.empty()) {
+        return "";
+    }
+    items.erase(items.end() - 1);
+    return android::base::Join(items, ".");
+}
+
+std::set<std::string> HidlMetadataToSet(
+    const std::vector<HidlInterfaceMetadata>& hidlMetadata,
+    const std::function<bool(const std::string&)>& shouldCheck) {
+    std::set<std::string> ret;
+    for (const auto& item : hidlMetadata) {
+        InsertIf(StripHidlInterface(item.name), shouldCheck, &ret);
+    }
+    return ret;
+}
+
+std::set<std::string> AidlMetadataToSet(
+    const std::vector<AidlInterfaceMetadata>& aidlMetadata,
+    const std::function<bool(const std::string&)>& shouldCheck) {
+    std::set<std::string> ret;
+    for (const auto& item : aidlMetadata) {
+        for (const auto& type : item.types) {
+            InsertIf(StripAidlType(type), shouldCheck, &ret);
+        }
+    }
+    return ret;
+}
+
+}  // anonymous namespace
+
+android::base::Result<void> VintfObject::checkMissingHalsInMatrices(
+    const std::vector<HidlInterfaceMetadata>& hidlMetadata,
+    const std::vector<AidlInterfaceMetadata>& aidlMetadata,
+    std::function<bool(const std::string&)> shouldCheck) {
+    if (!shouldCheck) {
+        shouldCheck = [](const auto&) { return true; };
+    }
+
+    // Get all framework matrix fragments instead of the combined framework compatibility matrix
+    // because the latter may omit interfaces from the latest FCM if device target-level is not
+    // the latest.
+    std::vector<CompatibilityMatrix> matrixFragments;
+    std::string error;
+    auto matrixFragmentsStatus = getAllFrameworkMatrixLevels(&matrixFragments, &error);
+    if (matrixFragmentsStatus != OK) {
+        return android::base::Error(-matrixFragmentsStatus)
+               << "Unable to get all framework matrix fragments: " << error;
+    }
+    if (matrixFragments.empty()) {
+        if (error.empty()) {
+            error = "Cannot get framework matrix for each FCM version for unknown error.";
+        }
+        return android::base::Error(-NAME_NOT_FOUND) << error;
+    }
+
+    // Filter aidlMetadata and hidlMetadata with shouldCheck.
+    auto allAidlInterfaces = AidlMetadataToSet(aidlMetadata, shouldCheck);
+    auto allHidlInterfaces = HidlMetadataToSet(hidlMetadata, shouldCheck);
+
+    // Filter out instances in allAidlMetadata and allHidlMetadata that are in the matrices.
+    std::vector<std::string> errors;
+    for (const auto& matrix : matrixFragments) {
+        matrix.forEachInstance([&](const MatrixInstance& matrixInstance) {
+            switch (matrixInstance.format()) {
+                case HalFormat::AIDL: {
+                    allAidlInterfaces.erase(matrixInstance.package());
+                    return true;  // continue to next instance
+                }
+                case HalFormat::HIDL: {
+                    for (Version v = matrixInstance.versionRange().minVer();
+                         v <= matrixInstance.versionRange().maxVer(); ++v.minorVer) {
+                        allHidlInterfaces.erase(toFQNameString(matrixInstance.package(), v));
+                    }
+                    return true;  // continue to next instance
+                }
+                default: {
+                    if (shouldCheck(matrixInstance.package())) {
+                        errors.push_back("HAL package " + matrixInstance.package() +
+                                         " is not allowed to have format " +
+                                         to_string(matrixInstance.format()) + ".");
+                    }
+                    return true;  // continue to next instance
+                }
+            }
+        });
+    }
+
+    if (!allHidlInterfaces.empty()) {
+        errors.push_back(
+            "The following HIDL packages are not found in any compatibility matrix fragments:\t\n" +
+            android::base::Join(allHidlInterfaces, "\t\n"));
+    }
+    if (!allAidlInterfaces.empty()) {
+        errors.push_back(
+            "The following AIDL packages are not found in any compatibility matrix fragments:\t\n" +
+            android::base::Join(allAidlInterfaces, "\t\n"));
+    }
+
+    if (!errors.empty()) {
+        return android::base::Error() << android::base::Join(errors, "\n");
+    }
+
+    return {};
+}
+
 // make_unique does not work because VintfObject constructor is private.
 VintfObject::Builder::Builder() : mObject(std::unique_ptr<VintfObject>(new VintfObject())) {}
 
@@ -1003,5 +1129,5 @@ std::unique_ptr<VintfObject> VintfObject::Builder::build() {
     return std::move(mObject);
 }
 
-} // namespace vintf
-} // namespace android
+}  // namespace vintf
+}  // namespace android

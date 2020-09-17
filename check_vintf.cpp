@@ -18,10 +18,12 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
 
+#include <aidl/metadata.h>
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/parseint.h>
@@ -31,6 +33,7 @@
 #include <utils/Errors.h>
 #include <vintf/KernelConfigParser.h>
 #include <vintf/VintfObject.h>
+#include <vintf/fcm_exclude.h>
 #include <vintf/parse_string.h>
 #include <vintf/parse_xml.h>
 #include "utils.h"
@@ -367,11 +370,16 @@ android::base::Error& SetErrorCode(std::optional<android::base::Error>* retError
 
 // If |other| is an error, add it to |retError|.
 template <typename T>
-void AddResult(std::optional<android::base::Error>* retError,
-               const android::base::Result<T>& other) {
+void AddResult(std::optional<android::base::Error>* retError, const android::base::Result<T>& other,
+               const char* additionalMessage = "") {
     if (other.ok()) return;
-    SetErrorCode(retError, other.error().code()) << other.error();
+    SetErrorCode(retError, other.error().code()) << other.error() << additionalMessage;
 }
+
+static constexpr const char* gCheckMissingHalsSuggestion{
+    "\n- If this is a new package, add it to the latest framework compatibility matrix."
+    "\n- If no interface should be added to the framework compatibility matrix (e.g. "
+    "types-only package), add it to the exempt list in libvintf_fcm_exclude."};
 
 android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties& props,
                                           std::shared_ptr<StaticRuntimeInfo> runtimeInfo) {
@@ -455,6 +463,13 @@ int checkDirmaps(const Dirmap& dirmap, const Properties& props) {
             auto matrix = vintfObject->getFrameworkCompatibilityMatrix();
             if (!matrix) {
                 LOG(ERROR) << "Cannot fetch system matrix.";
+                exitCode = EX_SOFTWARE;
+            }
+            auto res = vintfObject->checkMissingHalsInMatrices(HidlInterfaceMetadata::all(),
+                                                               AidlInterfaceMetadata::all(),
+                                                               ShouldCheckMissingHalsInFcm);
+            if (!res.ok()) {
+                LOG(ERROR) << res.error() << gCheckMissingHalsSuggestion;
                 exitCode = EX_SOFTWARE;
             }
             continue;

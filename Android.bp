@@ -64,6 +64,7 @@ cc_library {
         "libz",
     ],
     header_libs: [
+        "libaidlmetadata_headers",
         "libhidlmetadata_headers",
     ],
     export_include_dirs: ["include", "."],
@@ -74,6 +75,7 @@ cc_library {
         "libhidl-gen-utils",
     ],
     export_header_lib_headers: [
+        "libaidlmetadata_headers",
         "libhidlmetadata_headers",
     ],
     target: {
@@ -116,11 +118,13 @@ cc_binary_host {
     name: "checkvintf",
     defaults: ["libvintf-defaults"],
     static_libs: [
+        "libaidlmetadata",
         "libbase",
         "libhidl-gen-utils",
         "libhidlmetadata",
         "liblog",
         "libvintf",
+        "libvintf_fcm_exclude",
         "libutils",
         "libtinyxml2",
     ],

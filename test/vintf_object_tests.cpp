@@ -1655,6 +1655,129 @@ INSTANTIATE_TEST_SUITE_P(OemFcmLevel, OemFcmLevelTest, Combine(Values(1, 2), Boo
     OemFcmLevelTestParamToString);
 // clang-format on
 
+// A matcher that checks if a Result object contains an error message, and the error message
+// contains the given substring.
+class ErrorMessageMatcher {
+   public:
+    ErrorMessageMatcher(const std::string& message) : mMessage(message) {}
+    template <class T>
+    bool MatchAndExplain(const android::base::Result<T>& result,
+                         MatchResultListener* listener) const {
+        if (result.ok()) {
+            *listener << "result is ok";
+            return false;
+        }
+        *listener << "result has error message \"" << result.error().message() << "\"";
+        return result.error().message().find(mMessage) != std::string::npos;
+    }
+    void DescribeTo(std::ostream* os) const {
+        *os << "error message contains \"" << mMessage << "\"";
+    }
+    void DescribeNegationTo(std::ostream* os) const {
+        *os << "error message does not contain \"" << mMessage << "\"";
+    }
+
+   private:
+    std::string mMessage;
+};
+PolymorphicMatcher<ErrorMessageMatcher> HasErrorMessage(const std::string& message) {
+    return MakePolymorphicMatcher(ErrorMessageMatcher(message));
+}
+
+// A set of tests on VintfObject::checkMissingHalsInMatrices
+class CheckMissingHalsTest : public MultiMatrixTest {
+    void SetUp() override {
+        MultiMatrixTest::SetUp();
+
+        // clang-format off
+        std::vector<std::string> matrices{
+            "<compatibility-matrix " + kMetaVersionStr + " type=\"framework\" level=\"1\">\n"
+            "    <hal format=\"hidl\">\n"
+            "        <name>android.hardware.hidl</name>\n"
+            "        <version>1.0</version>\n"
+            "        <interface>\n"
+            "            <name>IHidl</name>\n"
+            "            <instance>default</instance>\n"
+            "        </interface>\n"
+            "    </hal>\n"
+            "    <hal format=\"aidl\">\n"
+            "        <name>android.hardware.aidl</name>\n"
+            "        <interface>\n"
+            "            <name>IAidl</name>\n"
+            "            <instance>default</instance>\n"
+            "        </interface>\n"
+            "    </hal>\n"
+            "</compatibility-matrix>\n",
+        };
+        // clang-format on
+
+        SetUpMockSystemMatrices(matrices);
+    }
+};
+
+TEST_F(CheckMissingHalsTest, Empty) {
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices({}, {}));
+}
+
+TEST_F(CheckMissingHalsTest, Pass) {
+    std::vector<HidlInterfaceMetadata> hidl{{.name = "android.hardware.hidl@1.0::IHidl"}};
+    std::vector<AidlInterfaceMetadata> aidl{{.types = {"android.hardware.aidl.IAidl"}}};
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices(hidl, {}));
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices({}, aidl));
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices(hidl, aidl));
+}
+
+TEST_F(CheckMissingHalsTest, FailVendor) {
+    std::vector<HidlInterfaceMetadata> hidl{{.name = "vendor.foo.hidl@1.0"}};
+    std::vector<AidlInterfaceMetadata> aidl{{.types = {"vendor.foo.aidl.IAidl"}}};
+
+    auto res = vintfObject->checkMissingHalsInMatrices(hidl, {});
+    EXPECT_THAT(res, HasErrorMessage("vendor.foo.hidl@1.0"));
+
+    res = vintfObject->checkMissingHalsInMatrices({}, aidl);
+    EXPECT_THAT(res, HasErrorMessage("vendor.foo.aidl"));
+
+    res = vintfObject->checkMissingHalsInMatrices(hidl, aidl);
+    EXPECT_THAT(res, HasErrorMessage("vendor.foo.hidl@1.0"));
+    EXPECT_THAT(res, HasErrorMessage("vendor.foo.aidl"));
+
+    auto predicate = [](const auto& interfaceName) {
+        return android::base::StartsWith(interfaceName, "android.hardware");
+    };
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices(hidl, {}, predicate));
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices({}, aidl, predicate));
+    EXPECT_RESULT_OK(vintfObject->checkMissingHalsInMatrices(hidl, aidl, predicate));
+}
+
+TEST_F(CheckMissingHalsTest, FailVersion) {
+    std::vector<HidlInterfaceMetadata> hidl{{.name = "android.hardware.hidl@2.0"}};
+    std::vector<AidlInterfaceMetadata> aidl{{.types = {"android.hardware.aidl2.IAidl"}}};
+
+    auto res = vintfObject->checkMissingHalsInMatrices(hidl, {});
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.hidl@2.0"));
+
+    res = vintfObject->checkMissingHalsInMatrices({}, aidl);
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.aidl2"));
+
+    res = vintfObject->checkMissingHalsInMatrices(hidl, aidl);
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.hidl@2.0"));
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.aidl2"));
+
+    auto predicate = [](const auto& interfaceName) {
+        return android::base::StartsWith(interfaceName, "android.hardware");
+    };
+
+    res = vintfObject->checkMissingHalsInMatrices(hidl, {}, predicate);
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.hidl@2.0"));
+
+    res = vintfObject->checkMissingHalsInMatrices({}, aidl, predicate);
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.aidl2"));
+
+    res = vintfObject->checkMissingHalsInMatrices(hidl, aidl, predicate);
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.hidl@2.0"));
+    EXPECT_THAT(res, HasErrorMessage("android.hardware.aidl2"));
+}
+
 }  // namespace testing
 }  // namespace vintf
 }  // namespace android
