@@ -41,6 +41,7 @@ namespace android {
 namespace vintf {
 
 namespace details {
+class CheckVintfUtils;
 class VintfObjectAfterUpdate;
 
 template <typename T>
@@ -255,6 +256,7 @@ class VintfObject {
 
     // Expose functions to simulate dependency injection.
     friend class details::VintfObjectAfterUpdate;
+    friend class details::CheckVintfUtils;
 
    protected:
     virtual const std::unique_ptr<FileSystem>& getFileSystem();

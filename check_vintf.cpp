@@ -18,6 +18,7 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -352,6 +353,51 @@ int usage(const char* me) {
     return EX_USAGE;
 }
 
+class CheckVintfUtils {
+   public:
+    // Print HALs in the device manifest that are not declared in FCMs <= target FCM version.
+    static void logHalsFromNewFcms(VintfObject* vintfObject,
+                                   const std::vector<HidlInterfaceMetadata>& hidlMetadata) {
+        auto deviceManifest = vintfObject->getDeviceHalManifest();
+        if (deviceManifest == nullptr) {
+            LOG(WARNING) << "Unable to print HALs from new FCMs: no device HAL manifest.";
+            return;
+        }
+        std::vector<CompatibilityMatrix> matrixFragments;
+        std::string error;
+        auto status = vintfObject->getAllFrameworkMatrixLevels(&matrixFragments, &error);
+        if (status != OK || matrixFragments.empty()) {
+            LOG(WARNING) << "Unable to print HALs from new FCMs: " << statusToString(status) << ": "
+                         << error;
+            return;
+        }
+        auto it = std::remove_if(matrixFragments.begin(), matrixFragments.end(),
+                                 [&](const CompatibilityMatrix& matrix) {
+                                     return matrix.level() != Level::UNSPECIFIED &&
+                                            matrix.level() > deviceManifest->level();
+                                 });
+        matrixFragments.erase(it, matrixFragments.end());
+        auto combined =
+            CompatibilityMatrix::combine(deviceManifest->level(), &matrixFragments, &error);
+        if (combined == nullptr) {
+            LOG(WARNING) << "Unable to print HALs from new FCMs: unable to combine matrix "
+                            "fragments <= level "
+                         << deviceManifest->level() << ": " << error;
+        }
+        auto unused = deviceManifest->checkUnusedHals(*combined, hidlMetadata);
+        if (unused.empty()) {
+            LOG(INFO) << "All HALs in device manifest are declared in FCM <= level "
+                      << deviceManifest->level();
+            return;
+        }
+        LOG(INFO) << "The following HALs in device manifest are not declared in FCM <= level "
+                  << deviceManifest->level() << ": ";
+        for (const auto& hal : unused) {
+            LOG(INFO) << "  " << hal;
+        }
+    }
+};
+
 // If |result| is already an error, don't do anything. Otherwise, set it to
 // an error with |errorCode|. Return reference to Error object for appending
 // additional error messages.
@@ -432,6 +478,8 @@ android::base::Result<void> checkAllFiles(const Dirmap& dirmap, const Properties
     } else {
         LOG(INFO) << "Skip checking unused HALs.";
     }
+
+    CheckVintfUtils::logHalsFromNewFcms(vintfObject.get(), hidlMetadata);
 
     if (retError.has_value()) {
         return *retError;

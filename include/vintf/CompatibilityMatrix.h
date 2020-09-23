@@ -41,6 +41,10 @@
 namespace android {
 namespace vintf {
 
+namespace details {
+class CheckVintfUtils;
+}  // namespace details
+
 // Compatibility matrix defines what hardware does the framework requires.
 struct CompatibilityMatrix : public HalGroup<MatrixHal>,
                              public XmlFileGroup<MatrixXmlFile>,
@@ -152,6 +156,7 @@ struct CompatibilityMatrix : public HalGroup<MatrixHal>,
     friend class VintfObject;
     friend class AssembleVintfImpl;
     friend class KernelInfo;
+    friend class details::CheckVintfUtils;
     friend bool operator==(const CompatibilityMatrix &, const CompatibilityMatrix &);
 
     SchemaType mType;

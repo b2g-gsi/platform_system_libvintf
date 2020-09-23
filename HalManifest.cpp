@@ -354,10 +354,11 @@ static bool checkVendorNdkCompatibility(const VendorNdk& matVendorNdk,
     // no match is found.
     if (error != nullptr) {
         *error = "Vndk version " + matVendorNdk.version() + " is not supported. " +
-                 "Supported versions in framework manifest are:";
+                 "Supported versions in framework manifest are: [";
         for (const auto& vndk : manifestVendorNdk) {
             *error += " " + vndk.version();
         }
+        *error += "]";
     }
     return false;
 }

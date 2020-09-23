@@ -52,6 +52,9 @@ namespace details {
 using InstancesOfVersion =
     std::map<std::string /* interface */, std::set<std::string /* instance */>>;
 using Instances = std::map<Version, InstancesOfVersion>;
+
+class CheckVintfUtils;
+
 }  // namespace details
 
 // A HalManifest is reported by the hardware and query-able from
@@ -158,6 +161,7 @@ struct HalManifest : public HalGroup<ManifestHal>,
     friend struct HalManifestConverter;
     friend class VintfObject;
     friend class AssembleVintfImpl;
+    friend class details::CheckVintfUtils;
     friend struct LibVintfTest;
     friend std::string dump(const HalManifest &vm);
     friend bool operator==(const HalManifest &lft, const HalManifest &rgt);
