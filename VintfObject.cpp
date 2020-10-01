@@ -23,12 +23,14 @@
 #include <memory>
 #include <mutex>
 
+#include <aidl/metadata.h>
 #include <android-base/logging.h>
 #include <android-base/result.h>
 #include <android-base/strings.h>
 #include <hidl/metadata.h>
 
 #include "CompatibilityMatrix.h"
+#include "constants-private.h"
 #include "parse_string.h"
 #include "parse_xml.h"
 #include "utils.h"
@@ -48,10 +50,10 @@ static constexpr bool kIsTarget = false;
 #endif
 
 template <typename T, typename F>
-static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr, bool skipCache,
+static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr,
                                     const F& fetchAllInformation) {
     std::unique_lock<std::mutex> _lock(ptr->mutex);
-    if (skipCache || !ptr->fetchedOnce) {
+    if (!ptr->fetchedOnce) {
         LOG(INFO) << id << ": Reading VINTF information.";
         ptr->object = std::make_unique<T>();
         std::string error;
@@ -64,7 +66,7 @@ static std::shared_ptr<const T> Get(const char* id, LockedSharedPtr<T>* ptr, boo
             // lose the status.
             LOG(ERROR) << id << ": status from fetching VINTF information: " << status;
             LOG(ERROR) << id << ": " << status << " VINTF parse error: " << error;
-            ptr->object = nullptr; // frees the old object
+            ptr->object = nullptr;  // frees the old object
         }
     }
     return ptr->object;
@@ -99,53 +101,50 @@ std::shared_ptr<VintfObject> VintfObject::GetInstance() {
     return sInstance.object;
 }
 
-std::shared_ptr<const HalManifest> VintfObject::GetDeviceHalManifest(bool skipCache) {
-    return GetInstance()->getDeviceHalManifest(skipCache);
+std::shared_ptr<const HalManifest> VintfObject::GetDeviceHalManifest() {
+    return GetInstance()->getDeviceHalManifest();
 }
 
-std::shared_ptr<const HalManifest> VintfObject::getDeviceHalManifest(bool skipCache) {
-    return Get(__func__, &mDeviceManifest, skipCache,
+std::shared_ptr<const HalManifest> VintfObject::getDeviceHalManifest() {
+    return Get(__func__, &mDeviceManifest,
                std::bind(&VintfObject::fetchDeviceHalManifest, this, _1, _2));
 }
 
-std::shared_ptr<const HalManifest> VintfObject::GetFrameworkHalManifest(bool skipCache) {
-    return GetInstance()->getFrameworkHalManifest(skipCache);
+std::shared_ptr<const HalManifest> VintfObject::GetFrameworkHalManifest() {
+    return GetInstance()->getFrameworkHalManifest();
 }
 
-std::shared_ptr<const HalManifest> VintfObject::getFrameworkHalManifest(bool skipCache) {
-    return Get(__func__, &mFrameworkManifest, skipCache,
+std::shared_ptr<const HalManifest> VintfObject::getFrameworkHalManifest() {
+    return Get(__func__, &mFrameworkManifest,
                std::bind(&VintfObject::fetchFrameworkHalManifest, this, _1, _2));
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::GetDeviceCompatibilityMatrix(bool skipCache) {
-    return GetInstance()->getDeviceCompatibilityMatrix(skipCache);
+std::shared_ptr<const CompatibilityMatrix> VintfObject::GetDeviceCompatibilityMatrix() {
+    return GetInstance()->getDeviceCompatibilityMatrix();
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::getDeviceCompatibilityMatrix(
-    bool skipCache) {
-    return Get(__func__, &mDeviceMatrix, skipCache,
-               std::bind(&VintfObject::fetchDeviceMatrix, this, _1, _2));
+std::shared_ptr<const CompatibilityMatrix> VintfObject::getDeviceCompatibilityMatrix() {
+    return Get(__func__, &mDeviceMatrix, std::bind(&VintfObject::fetchDeviceMatrix, this, _1, _2));
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::GetFrameworkCompatibilityMatrix(bool skipCache) {
-    return GetInstance()->getFrameworkCompatibilityMatrix(skipCache);
+std::shared_ptr<const CompatibilityMatrix> VintfObject::GetFrameworkCompatibilityMatrix() {
+    return GetInstance()->getFrameworkCompatibilityMatrix();
 }
 
-std::shared_ptr<const CompatibilityMatrix> VintfObject::getFrameworkCompatibilityMatrix(
-    bool skipCache) {
+std::shared_ptr<const CompatibilityMatrix> VintfObject::getFrameworkCompatibilityMatrix() {
     // To avoid deadlock, get device manifest before any locks.
     auto deviceManifest = getDeviceHalManifest();
 
     std::unique_lock<std::mutex> _lock(mFrameworkCompatibilityMatrixMutex);
 
     auto combined =
-        Get(__func__, &mCombinedFrameworkMatrix, skipCache,
+        Get(__func__, &mCombinedFrameworkMatrix,
             std::bind(&VintfObject::getCombinedFrameworkMatrix, this, deviceManifest, _1, _2));
     if (combined != nullptr) {
         return combined;
     }
 
-    return Get(__func__, &mFrameworkMatrix, skipCache,
+    return Get(__func__, &mFrameworkMatrix,
                std::bind(&CompatibilityMatrix::fetchAllInformation, _1, getFileSystem().get(),
                          kSystemLegacyMatrix, _2));
 }
@@ -499,17 +498,14 @@ status_t VintfObject::getAllFrameworkMatrixLevels(std::vector<CompatibilityMatri
     return OK;
 }
 
-std::shared_ptr<const RuntimeInfo> VintfObject::GetRuntimeInfo(bool skipCache,
-                                                               RuntimeInfo::FetchFlags flags) {
-    return GetInstance()->getRuntimeInfo(skipCache, flags);
+std::shared_ptr<const RuntimeInfo> VintfObject::GetRuntimeInfo(RuntimeInfo::FetchFlags flags) {
+    return GetInstance()->getRuntimeInfo(flags);
 }
-std::shared_ptr<const RuntimeInfo> VintfObject::getRuntimeInfo(bool skipCache,
-                                                               RuntimeInfo::FetchFlags flags) {
+std::shared_ptr<const RuntimeInfo> VintfObject::getRuntimeInfo(RuntimeInfo::FetchFlags flags) {
     std::unique_lock<std::mutex> _lock(mDeviceRuntimeInfo.mutex);
 
-    if (!skipCache) {
-        flags &= (~mDeviceRuntimeInfo.fetchedFlags);
-    }
+    // Skip fetching information that has already been fetched previously.
+    flags &= (~mDeviceRuntimeInfo.fetchedFlags);
 
     if (mDeviceRuntimeInfo.object == nullptr) {
         mDeviceRuntimeInfo.object = getRuntimeInfoFactory()->make_shared();
@@ -981,6 +977,130 @@ android::base::Result<void> VintfObject::checkUnusedHals(
     return {};
 }
 
+namespace {
+
+// Insert |name| into |ret| if shouldCheck(name).
+void InsertIf(const std::string& name, const std::function<bool(const std::string&)>& shouldCheck,
+              std::set<std::string>* ret) {
+    if (shouldCheck(name)) ret->insert(name);
+}
+
+std::string StripHidlInterface(const std::string& fqNameString) {
+    FQName fqName;
+    if (!fqName.setTo(fqNameString)) {
+        return "";
+    }
+    return fqName.getPackageAndVersion().string();
+}
+
+std::string StripAidlType(const std::string& type) {
+    auto items = android::base::Split(type, ".");
+    if (items.empty()) {
+        return "";
+    }
+    items.erase(items.end() - 1);
+    return android::base::Join(items, ".");
+}
+
+std::set<std::string> HidlMetadataToSet(
+    const std::vector<HidlInterfaceMetadata>& hidlMetadata,
+    const std::function<bool(const std::string&)>& shouldCheck) {
+    std::set<std::string> ret;
+    for (const auto& item : hidlMetadata) {
+        InsertIf(StripHidlInterface(item.name), shouldCheck, &ret);
+    }
+    return ret;
+}
+
+std::set<std::string> AidlMetadataToSet(
+    const std::vector<AidlInterfaceMetadata>& aidlMetadata,
+    const std::function<bool(const std::string&)>& shouldCheck) {
+    std::set<std::string> ret;
+    for (const auto& item : aidlMetadata) {
+        for (const auto& type : item.types) {
+            InsertIf(StripAidlType(type), shouldCheck, &ret);
+        }
+    }
+    return ret;
+}
+
+}  // anonymous namespace
+
+android::base::Result<void> VintfObject::checkMissingHalsInMatrices(
+    const std::vector<HidlInterfaceMetadata>& hidlMetadata,
+    const std::vector<AidlInterfaceMetadata>& aidlMetadata,
+    std::function<bool(const std::string&)> shouldCheck) {
+    if (!shouldCheck) {
+        shouldCheck = [](const auto&) { return true; };
+    }
+
+    // Get all framework matrix fragments instead of the combined framework compatibility matrix
+    // because the latter may omit interfaces from the latest FCM if device target-level is not
+    // the latest.
+    std::vector<CompatibilityMatrix> matrixFragments;
+    std::string error;
+    auto matrixFragmentsStatus = getAllFrameworkMatrixLevels(&matrixFragments, &error);
+    if (matrixFragmentsStatus != OK) {
+        return android::base::Error(-matrixFragmentsStatus)
+               << "Unable to get all framework matrix fragments: " << error;
+    }
+    if (matrixFragments.empty()) {
+        if (error.empty()) {
+            error = "Cannot get framework matrix for each FCM version for unknown error.";
+        }
+        return android::base::Error(-NAME_NOT_FOUND) << error;
+    }
+
+    // Filter aidlMetadata and hidlMetadata with shouldCheck.
+    auto allAidlInterfaces = AidlMetadataToSet(aidlMetadata, shouldCheck);
+    auto allHidlInterfaces = HidlMetadataToSet(hidlMetadata, shouldCheck);
+
+    // Filter out instances in allAidlMetadata and allHidlMetadata that are in the matrices.
+    std::vector<std::string> errors;
+    for (const auto& matrix : matrixFragments) {
+        matrix.forEachInstance([&](const MatrixInstance& matrixInstance) {
+            switch (matrixInstance.format()) {
+                case HalFormat::AIDL: {
+                    allAidlInterfaces.erase(matrixInstance.package());
+                    return true;  // continue to next instance
+                }
+                case HalFormat::HIDL: {
+                    for (Version v = matrixInstance.versionRange().minVer();
+                         v <= matrixInstance.versionRange().maxVer(); ++v.minorVer) {
+                        allHidlInterfaces.erase(toFQNameString(matrixInstance.package(), v));
+                    }
+                    return true;  // continue to next instance
+                }
+                default: {
+                    if (shouldCheck(matrixInstance.package())) {
+                        errors.push_back("HAL package " + matrixInstance.package() +
+                                         " is not allowed to have format " +
+                                         to_string(matrixInstance.format()) + ".");
+                    }
+                    return true;  // continue to next instance
+                }
+            }
+        });
+    }
+
+    if (!allHidlInterfaces.empty()) {
+        errors.push_back(
+            "The following HIDL packages are not found in any compatibility matrix fragments:\t\n" +
+            android::base::Join(allHidlInterfaces, "\t\n"));
+    }
+    if (!allAidlInterfaces.empty()) {
+        errors.push_back(
+            "The following AIDL packages are not found in any compatibility matrix fragments:\t\n" +
+            android::base::Join(allAidlInterfaces, "\t\n"));
+    }
+
+    if (!errors.empty()) {
+        return android::base::Error() << android::base::Join(errors, "\n");
+    }
+
+    return {};
+}
+
 // make_unique does not work because VintfObject constructor is private.
 VintfObject::Builder::Builder() : mObject(std::unique_ptr<VintfObject>(new VintfObject())) {}
 
@@ -1009,5 +1129,5 @@ std::unique_ptr<VintfObject> VintfObject::Builder::build() {
     return std::move(mObject);
 }
 
-} // namespace vintf
-} // namespace android
+}  // namespace vintf
+}  // namespace android

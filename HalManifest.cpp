@@ -54,6 +54,15 @@ bool HalManifest::shouldAdd(const ManifestHal& hal, std::string* error) const {
     if (hal.isOverride()) {
         return true;
     }
+    return addingConflictingMajorVersion(hal, error);
+}
+
+bool HalManifest::addingConflictingMajorVersion(const ManifestHal& hal, std::string* error) const {
+    // Skip checking for AIDL HALs because they all contain kFakeAidlVersion.
+    if (hal.format == HalFormat::AIDL) {
+        return true;
+    }
+
     auto existingHals = mHals.equal_range(hal.name);
     std::map<size_t, std::tuple<const ManifestHal*, Version>> existing;
     for (auto it = existingHals.first; it != existingHals.second; ++it) {
@@ -345,10 +354,11 @@ static bool checkVendorNdkCompatibility(const VendorNdk& matVendorNdk,
     // no match is found.
     if (error != nullptr) {
         *error = "Vndk version " + matVendorNdk.version() + " is not supported. " +
-                 "Supported versions in framework manifest are:";
+                 "Supported versions in framework manifest are: [";
         for (const auto& vndk : manifestVendorNdk) {
             *error += " " + vndk.version();
         }
+        *error += "]";
     }
     return false;
 }

@@ -97,11 +97,12 @@ struct RuntimeInfo {
         ALL = ((LAST_PLUS_ONE - 1) << 1) - 1,
     };
 
+    Level kernelLevel() const;
+
    protected:
     virtual status_t fetchAllInformation(FetchFlags flags);
 
     void setKernelLevel(Level level);
-    Level kernelLevel() const;
 
     friend struct RuntimeInfoFetcher;
     friend class VintfObject;
