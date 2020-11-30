@@ -42,6 +42,7 @@ namespace vintf {
 
 namespace details {
 class CheckVintfUtils;
+class FmOnlyVintfObject;
 class VintfObjectAfterUpdate;
 
 template <typename T>
@@ -257,6 +258,7 @@ class VintfObject {
     // Expose functions to simulate dependency injection.
     friend class details::VintfObjectAfterUpdate;
     friend class details::CheckVintfUtils;
+    friend class details::FmOnlyVintfObject;
 
    protected:
     virtual const std::unique_ptr<FileSystem>& getFileSystem();
@@ -328,6 +330,9 @@ class VintfObject {
                                  std::string* error = nullptr);
     status_t fetchVendorHalManifest(HalManifest* out, std::string* error = nullptr);
     status_t fetchFrameworkHalManifest(HalManifest* out, std::string* error = nullptr);
+
+    status_t fetchUnfilteredFrameworkHalManifest(HalManifest* out, std::string* error);
+    void filterHalsByDeviceManifestLevel(HalManifest* out);
 
     using ChildrenMap = std::multimap<std::string, std::string>;
     static bool IsHalDeprecated(const MatrixHal& oldMatrixHal,

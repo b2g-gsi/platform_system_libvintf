@@ -31,7 +31,10 @@
 #include <android-base/result.h>
 #include <android-base/strings.h>
 #include <hidl/metadata.h>
+#include <kver/kernel_release.h>
 #include <utils/Errors.h>
+#include <vintf/Dirmap.h>
+#include <vintf/HostFileSystem.h>
 #include <vintf/KernelConfigParser.h>
 #include <vintf/VintfObject.h>
 #include <vintf/fcm_exclude.h>
@@ -39,14 +42,14 @@
 #include <vintf/parse_xml.h>
 #include "utils.h"
 
+using android::kver::KernelRelease;
+
 namespace android {
 namespace vintf {
 namespace details {
 
 // fake sysprops
 using Properties = std::map<std::string, std::string>;
-
-using Dirmap = std::map<std::string, std::string>;
 
 enum Option : int {
     // Modes
@@ -63,56 +66,6 @@ enum Option : int {
 };
 // command line arguments
 using Args = std::multimap<Option, std::string>;
-
-class HostFileSystem : public details::FileSystemImpl {
-   public:
-    HostFileSystem(const Dirmap& dirmap, status_t missingError)
-        : mDirMap(dirmap), mMissingError(missingError) {}
-    status_t fetch(const std::string& path, std::string* fetched,
-                   std::string* error) const override {
-        auto resolved = resolve(path, error);
-        if (resolved.empty()) {
-            return mMissingError;
-        }
-        status_t status = details::FileSystemImpl::fetch(resolved, fetched, error);
-        LOG(INFO) << "Fetch '" << resolved << "': " << toString(status);
-        return status;
-    }
-    status_t listFiles(const std::string& path, std::vector<std::string>* out,
-                       std::string* error) const override {
-        auto resolved = resolve(path, error);
-        if (resolved.empty()) {
-            return mMissingError;
-        }
-        status_t status = details::FileSystemImpl::listFiles(resolved, out, error);
-        LOG(INFO) << "List '" << resolved << "': " << toString(status);
-        return status;
-    }
-
-   private:
-    static std::string toString(status_t status) {
-        return status == OK ? "SUCCESS" : strerror(-status);
-    }
-    std::string resolve(const std::string& path, std::string* error) const {
-        for (auto [prefix, mappedPath] : mDirMap) {
-            if (path == prefix) {
-                return mappedPath;
-            }
-            if (android::base::StartsWith(path, prefix + "/")) {
-                return mappedPath + "/" + path.substr(prefix.size() + 1);
-            }
-        }
-        if (error) {
-            *error = "Cannot resolve path " + path;
-        } else {
-            LOG(mMissingError == NAME_NOT_FOUND ? INFO : ERROR) << "Cannot resolve path " << path;
-        }
-        return "";
-    }
-
-    Dirmap mDirMap;
-    status_t mMissingError;
-};
 
 class PresetPropertyFetcher : public PropertyFetcher {
    public:
@@ -150,12 +103,17 @@ class PresetPropertyFetcher : public PropertyFetcher {
 
 struct StaticRuntimeInfo : public RuntimeInfo {
     KernelVersion kernelVersion;
+    Level kernelLevel = Level::UNSPECIFIED;
     std::string kernelConfigFile;
 
     status_t fetchAllInformation(FetchFlags flags) override {
         if (flags & RuntimeInfo::FetchFlag::CPU_VERSION) {
             mKernel.mVersion = kernelVersion;
             LOG(INFO) << "fetched kernel version " << kernelVersion;
+        }
+        if (flags & RuntimeInfo::FetchFlag::KERNEL_FCM) {
+            mKernel.mLevel = kernelLevel;
+            LOG(INFO) << "fetched kernel level from RuntimeInfo '" << kernelLevel << "'";
         }
         if (flags & RuntimeInfo::FetchFlag::CONFIG_GZ) {
             std::string content;
@@ -270,24 +228,59 @@ Args parseArgs(int argc, char** argv) {
 }
 
 template <typename T>
-std::map<std::string, std::string> splitArgs(const T& args, char split) {
-    std::map<std::string, std::string> ret;
-    for (const auto& arg : args) {
-        auto pos = arg.find(split);
-        auto key = arg.substr(0, pos);
-        auto value = pos == std::string::npos ? std::string{} : arg.substr(pos + 1);
-        ret[key] = value;
-    }
-    return ret;
-}
-template <typename T>
 Properties getProperties(const T& args) {
     return splitArgs(args, '=');
 }
 
-template <typename T>
-Dirmap getDirmap(const T& args) {
-    return splitArgs(args, ':');
+// Parse a kernel version or a GKI kernel release.
+bool parseKernelVersionOrRelease(const std::string& s, StaticRuntimeInfo* ret) {
+    // 5.4.42
+    if (parse(s, &ret->kernelVersion)) {
+        ret->kernelLevel = Level::UNSPECIFIED;
+        return true;
+    }
+    LOG(INFO) << "Cannot parse \"" << s << "\" as kernel version, parsing as GKI kernel release.";
+
+    // 5.4.42-android12-0-something
+    auto kernelRelease = KernelRelease::Parse(s, true /* allow suffix */);
+    if (kernelRelease.has_value()) {
+        ret->kernelVersion = KernelVersion{kernelRelease->version(), kernelRelease->patch_level(),
+                                           kernelRelease->sub_level()};
+        ret->kernelLevel = RuntimeInfo::gkiAndroidReleaseToLevel(kernelRelease->android_release());
+        return true;
+    }
+    LOG(INFO) << "Cannot parse \"" << s << "\" as GKI kernel release, parsing as kernel release";
+
+    // 5.4.42-something
+    auto pos = s.find_first_not_of("0123456789.");
+    // substr handles pos == npos case
+    if (parse(s.substr(0, pos), &ret->kernelVersion)) {
+        ret->kernelLevel = Level::UNSPECIFIED;
+        return true;
+    }
+
+    LOG(INFO) << "Cannot parse \"" << s << "\" as kernel release";
+    return false;
+}
+
+// Parse the first half of --kernel. |s| can either be a kernel version, a GKI kernel release,
+// or a file that contains either of them.
+bool parseKernelArgFirstHalf(const std::string& s, StaticRuntimeInfo* ret) {
+    if (parseKernelVersionOrRelease(s, ret)) {
+        LOG(INFO) << "Successfully parsed \"" << s << "\"";
+        return true;
+    }
+    std::string content;
+    if (!android::base::ReadFileToString(s, &content)) {
+        PLOG(INFO) << "Cannot read file " << s;
+        return false;
+    }
+    if (parseKernelVersionOrRelease(content, ret)) {
+        LOG(INFO) << "Successfully parsed content of " << s << ": " << content;
+        return true;
+    }
+    LOG(ERROR) << "Cannot parse content of " << s << ": " << content;
+    return false;
 }
 
 template <typename T>
@@ -297,16 +290,18 @@ std::shared_ptr<StaticRuntimeInfo> getRuntimeInfo(const T& args) {
         LOG(ERROR) << "Can't have multiple --kernel options";
         return nullptr;
     }
-    auto pair = android::base::Split(*args.begin(), ":");
-    if (pair.size() != 2) {
+    const auto& arg = *args.begin();
+    auto colonPos = arg.rfind(":");
+    if (colonPos == std::string::npos) {
         LOG(ERROR) << "Invalid --kernel";
         return nullptr;
     }
-    if (!parse(pair[0], &ret->kernelVersion)) {
-        LOG(ERROR) << "Cannot parse " << pair[0] << " as kernel version";
+
+    if (!parseKernelArgFirstHalf(arg.substr(0, colonPos), ret.get())) {
         return nullptr;
     }
-    ret->kernelConfigFile = std::move(pair[1]);
+
+    ret->kernelConfigFile = arg.substr(colonPos + 1);
     return ret;
 }
 
@@ -328,10 +323,11 @@ int usage(const char* me) {
         << "        --dirmap </system:/dir/to/system> [--dirmap </vendor:/dir/to/vendor>[...]]"
         << std::endl
         << "                Map partitions to directories. Cannot be specified with --rootdir."
-        << "        --kernel <x.y.z:path/to/config>" << std::endl
+        << "        --kernel <version:path/to/config>" << std::endl
         << "                Use the given kernel version and config to check. If" << std::endl
         << "                unspecified, kernel requirements are skipped." << std::endl
-        << std::endl
+        << "                The first half, version, can be just x.y.z, or a file " << std::endl
+        << "                containing the full kernel release string x.y.z-something." << std::endl
         << "        --help: show this message." << std::endl
         << std::endl
         << "    Example:" << std::endl

@@ -97,12 +97,27 @@ struct RuntimeInfo {
         ALL = ((LAST_PLUS_ONE - 1) << 1) - 1,
     };
 
-    Level kernelLevel() const;
+
+    // GKI kernel release string specifies the kernel level using a string like
+    // "android12". This function converts the trailing number of this string to
+    // a Level. For example, androidReleaseToLevel(12) -> Level::S.
+    // Abort if the value of |androidRelease| is higher than supported values
+    // specified in Level.
+    static Level gkiAndroidReleaseToLevel(uint64_t androidRelease);
 
    protected:
     virtual status_t fetchAllInformation(FetchFlags flags);
 
     void setKernelLevel(Level level);
+    Level kernelLevel() const;
+
+    // Helper function to parse kernel release string as a GKI kernel release string.
+    // Return error if:
+    // - it is not a GKI kernel release string
+    // - kernel level is not recognized by libvintf.
+    static status_t parseGkiKernelRelease(RuntimeInfo::FetchFlags flags,
+                                          const std::string& kernelReleaseString,
+                                          KernelVersion* version, Level* kernelLevel);
 
     friend struct RuntimeInfoFetcher;
     friend class VintfObject;

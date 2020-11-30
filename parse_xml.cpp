@@ -711,6 +711,9 @@ struct ManifestHalConverter : public XmlNodeConverter<ManifestHal> {
             });
             appendTextElements(root, fqInstanceConverter.elementName(), simpleFqInstances, d);
         }
+        if (hal.getMaxLevel() != Level::UNSPECIFIED) {
+            appendAttr(root, "max-level", hal.getMaxLevel());
+        }
     }
     bool buildObject(ManifestHal* object, NodeType* root, std::string* error) const override {
         std::vector<HalInterface> interfaces;
@@ -719,7 +722,8 @@ struct ManifestHalConverter : public XmlNodeConverter<ManifestHal> {
             !parseTextElement(root, "name", &object->name, error) ||
             !parseOptionalChild(root, transportArchConverter, {}, &object->transportArch, error) ||
             !parseChildren(root, versionConverter, &object->versions, error) ||
-            !parseChildren(root, halInterfaceConverter, &interfaces, error)) {
+            !parseChildren(root, halInterfaceConverter, &interfaces, error) ||
+            !parseOptionalAttr(root, "max-level", Level::UNSPECIFIED, &object->mMaxLevel, error)) {
             return false;
         }
 

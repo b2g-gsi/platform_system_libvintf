@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_VINTF_CONSTANTS_H
-#define ANDROID_VINTF_CONSTANTS_H
+#pragma once
 
-#include "Version.h"
+// Include this on top of a source file to work.
 
-namespace android {
-namespace vintf {
-
-/* libvintf meta-version */
-constexpr Version kMetaVersion{3, 0};
-
-}  // namespace vintf
-}  // namespace android
-
-#endif  // ANDROID_VINTF_CONSTANTS_H
+// gmock generates operator<< for each argument, including std::string*,
+// which libbase logging.h doesn't like.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuser-defined-warnings"
+#include <gmock/gmock.h>
+#pragma clang diagnostic pop

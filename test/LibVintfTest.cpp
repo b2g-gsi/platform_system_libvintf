@@ -22,6 +22,7 @@
 #include <android-base/logging.h>
 #include <android-base/parseint.h>
 #include <android-base/strings.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <vintf/CompatibilityMatrix.h>
@@ -31,6 +32,10 @@
 #include <vintf/parse_xml.h>
 #include "constants-private.h"
 #include "test_constants.h"
+
+using ::testing::ElementsAre;
+using ::testing::Eq;
+using ::testing::Property;
 
 namespace android {
 namespace vintf {
@@ -126,6 +131,12 @@ public:
     }
     std::set<std::string> checkUnusedHals(const HalManifest& m, const CompatibilityMatrix& cm) {
         return m.checkUnusedHals(cm, {});
+    }
+    Level getLevel(const KernelInfo& ki) { return ki.level(); }
+    static status_t parseGkiKernelRelease(RuntimeInfo::FetchFlags flags,
+                                          const std::string& kernelRelease, KernelVersion* version,
+                                          Level* kernelLevel) {
+        return RuntimeInfo::parseGkiKernelRelease(flags, kernelRelease, version, kernelLevel);
     }
 
     std::map<std::string, HalInterface> testHalInterfaces() {
@@ -3960,7 +3971,7 @@ TEST_F(LibVintfTest, KernelInfoLevel) {
     std::string xml = "<kernel version=\"3.18.31\" target-level=\"1\"/>\n";
     KernelInfo ki;
     ASSERT_TRUE(gKernelInfoConverter(&ki, xml, &error)) << error;
-    EXPECT_EQ(Level{1}, ki.level());
+    EXPECT_EQ(Level{1}, getLevel(ki));
     EXPECT_EQ(xml, gKernelInfoConverter(ki));
 }
 
@@ -3993,6 +4004,78 @@ TEST_F(LibVintfTest, HalManifestMergeKernel) {
     EXPECT_IN("version=\"3.18.31\"", merged_xml);
     EXPECT_IN("CONFIG_64BIT", merged_xml);
 }
+
+// clang-format on
+
+TEST_F(LibVintfTest, FrameworkManifestHalMaxLevel) {
+    std::string xml = "<manifest " + kMetaVersionStr + R"( type="framework">
+                           <hal max-level="3">
+                               <name>android.frameworks.schedulerservice</name>
+                               <transport>hwbinder</transport>
+                               <fqname>@1.0::ISchedulingPolicyService/default</fqname>
+                           </hal>
+                           <hal format="aidl" max-level="4">
+                               <name>android.frameworks.myaidl</name>
+                               <fqname>IAidl/default</fqname>
+                           </hal>
+                           <hal format="native" max-level="5">
+                               <name>some-native-hal</name>
+                               <version>1.0</version>
+                           </hal>
+                       </manifest>)";
+
+    std::string error;
+    HalManifest manifest;
+    ASSERT_TRUE(gHalManifestConverter(&manifest, xml, &error)) << error;
+
+    auto hals = getHals(manifest, "android.frameworks.schedulerservice");
+    EXPECT_THAT(hals, ElementsAre(Property(&ManifestHal::getMaxLevel, Eq(static_cast<Level>(3)))));
+
+    hals = getHals(manifest, "android.frameworks.myaidl");
+    EXPECT_THAT(hals, ElementsAre(Property(&ManifestHal::getMaxLevel, Eq(static_cast<Level>(4)))));
+
+    hals = getHals(manifest, "some-native-hal");
+    EXPECT_THAT(hals, ElementsAre(Property(&ManifestHal::getMaxLevel, Eq(static_cast<Level>(5)))));
+}
+
+TEST_F(LibVintfTest, RuntimeInfoParseGkiKernelReleaseOk) {
+    KernelVersion version;
+    Level level = Level::UNSPECIFIED;
+    EXPECT_EQ(OK, parseGkiKernelRelease(RuntimeInfo::FetchFlag::ALL, "5.4.42-android12-0-something",
+                                        &version, &level));
+    EXPECT_EQ(KernelVersion(5, 4, 42), version);
+    EXPECT_EQ(Level::S, level);
+}
+
+TEST_F(LibVintfTest, RuntimeInfoParseGkiKernelReleaseVersionOnly) {
+    KernelVersion version;
+    EXPECT_EQ(OK, parseGkiKernelRelease(RuntimeInfo::FetchFlag::CPU_VERSION,
+                                        "5.4.42-android12-0-something", &version, nullptr));
+    EXPECT_EQ(KernelVersion(5, 4, 42), version);
+}
+
+TEST_F(LibVintfTest, RuntimeInfoParseGkiKernelReleaseLevelOnly) {
+    Level level = Level::UNSPECIFIED;
+    EXPECT_EQ(OK, parseGkiKernelRelease(RuntimeInfo::FetchFlag::KERNEL_FCM,
+                                        "5.4.42-android12-0-something", nullptr, &level));
+    EXPECT_EQ(Level::S, level);
+}
+
+TEST_F(LibVintfTest, RuntimeInfoParseGkiKernelReleaseLevelConsistent) {
+    Level level = Level::S;
+    EXPECT_EQ(OK, parseGkiKernelRelease(RuntimeInfo::FetchFlag::KERNEL_FCM,
+                                        "5.4.42-android12-0-something", nullptr, &level));
+    EXPECT_EQ(Level::S, level);
+}
+
+TEST_F(LibVintfTest, RuntimeInfoParseGkiKernelReleaseLevelInconsistent) {
+    Level level = Level::R;
+    EXPECT_EQ(UNKNOWN_ERROR,
+              parseGkiKernelRelease(RuntimeInfo::FetchFlag::KERNEL_FCM,
+                                    "5.4.42-android12-0-something", nullptr, &level));
+}
+
+// clang-format off
 
 struct FrameworkCompatibilityMatrixCombineTest : public LibVintfTest {
     virtual void SetUp() override {
@@ -4305,6 +4388,6 @@ TEST_F(DeviceCompatibilityMatrixCombineTest, AidlAndHidlNames) {
 } // namespace android
 
 int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
+    ::testing::InitGoogleMock(&argc, argv);
     return RUN_ALL_TESTS();
 }

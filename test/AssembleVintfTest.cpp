@@ -604,15 +604,6 @@ TEST_F(AssembleVintfTest, NoAutoSetKernelFcm) {
     EXPECT_IN("<kernel version=\"3.18.10\"/>", getOutput());
 }
 
-TEST_F(AssembleVintfTest, AutoSetKernelFcm) {
-    addInput("manifest.xml",
-        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"5\">\n"
-        "    <kernel version=\"5.4.10\"/>\n"
-        "</manifest>\n");
-    EXPECT_TRUE(getInstance()->assemble());
-    EXPECT_IN("<kernel version=\"5.4.10\" target-level=\"5\"/>", getOutput());
-}
-
 TEST_F(AssembleVintfTest, NoAutoSetKernelFcmWithConfig) {
     addInput("manifest.xml",
         "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"1\" />\n");
@@ -620,15 +611,6 @@ TEST_F(AssembleVintfTest, NoAutoSetKernelFcmWithConfig) {
                                               makeStream("CONFIG_FOO=y"));
     EXPECT_TRUE(getInstance()->assemble());
     EXPECT_IN("<kernel version=\"3.18.10\">", getOutput());
-}
-
-TEST_F(AssembleVintfTest, AutoSetKernelFcmWithConfig) {
-    addInput("manifest.xml",
-        "<manifest " + kMetaVersionStr + " type=\"device\" target-level=\"5\" />\n");
-    getInstance()->addKernelConfigInputStream({5, 4, 10}, "android-base.config",
-                                              makeStream("CONFIG_FOO=y"));
-    EXPECT_TRUE(getInstance()->assemble());
-    EXPECT_IN("<kernel version=\"5.4.10\" target-level=\"5\">", getOutput());
 }
 
 // Automatically add kernel FCM when parsing framework matrix for a single FCM version.

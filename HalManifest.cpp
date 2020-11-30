@@ -427,9 +427,15 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix& mat, std::string
             return false;
         }
 
+        // Not using inferredKernelLevel() to preserve the legacy behavior if <kernel> does not have
+        // level attribute.
+        // Note that shouldCheckKernelCompatibility() only returns true on host, because the
+        // on-device HalManifest does not have kernel version set. On the device, kernel information
+        // is retrieved from RuntimeInfo.
+        Level kernelTagLevel = kernel()->level();
         if (flags.isKernelEnabled() && shouldCheckKernelCompatibility() &&
             kernel()
-                ->getMatchedKernelRequirements(mat.framework.mKernels, kernel()->level(), error)
+                ->getMatchedKernelRequirements(mat.framework.mKernels, kernelTagLevel, error)
                 .empty()) {
             return false;
         }
@@ -442,15 +448,23 @@ bool HalManifest::shouldCheckKernelCompatibility() const {
     return kernel().has_value() && kernel()->version() != KernelVersion{};
 }
 
-CompatibilityMatrix HalManifest::generateCompatibleMatrix() const {
+CompatibilityMatrix HalManifest::generateCompatibleMatrix(bool optional) const {
     CompatibilityMatrix matrix;
 
-    forEachInstance([&matrix](const ManifestInstance& e) {
+    std::set<std::tuple<HalFormat, std::string, Version, std::string, std::string>> instances;
+
+    forEachInstance([&matrix, &instances, optional](const ManifestInstance& e) {
+        auto&& [it, added] =
+            instances.emplace(e.format(), e.package(), e.version(), e.interface(), e.instance());
+        if (!added) {
+            return true;
+        }
+
         matrix.add(MatrixHal{
             .format = e.format(),
             .name = e.package(),
             .versionRanges = {VersionRange{e.version().majorVer, e.version().minorVer}},
-            .optional = true,
+            .optional = optional,
             .interfaces = {{e.interface(), HalInterface{e.interface(), {e.instance()}}}}});
         return true;
     });
@@ -688,6 +702,21 @@ bool HalManifest::addAll(HalManifest* other, std::string* error) {
     }
 
     return true;
+}
+
+Level HalManifest::inferredKernelLevel() const {
+    if (kernel().has_value()) {
+        if (kernel()->level() != Level::UNSPECIFIED) {
+            return kernel()->level();
+        }
+    }
+    // As a special case, for devices launching with R and above, also infer from <manifest>.level.
+    // Devices launching before R may leave kernel level unspecified to use legacy kernel
+    // matching behavior; see KernelInfo::getMatchedKernelRequirements.
+    if (level() >= Level::R) {
+        return level();
+    }
+    return Level::UNSPECIFIED;
 }
 
 } // namespace vintf
