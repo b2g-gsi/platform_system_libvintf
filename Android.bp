@@ -27,6 +27,20 @@ cc_defaults {
     }
 }
 
+libvintf_private_deps = [
+    "libbase",
+    "libhidl-gen-utils",
+    "liblog",
+    "libselinux",
+    "libtinyxml2",
+    "libz",
+]
+
+cc_defaults {
+    name: "libvintf_static_user_defaults",
+    static_libs: libvintf_private_deps,
+}
+
 cc_library {
     name: "libvintf",
     defaults: ["libvintf-defaults"],
@@ -55,14 +69,7 @@ cc_library {
         "VintfObject.cpp",
         "XmlFile.cpp",
     ],
-    shared_libs: [
-        "libbase",
-        "libhidl-gen-utils",
-        "liblog",
-        "libselinux",
-        "libtinyxml2",
-        "libz",
-    ],
+    shared_libs: libvintf_private_deps,
     header_libs: [
         "libaidlmetadata_headers",
         "libhidlmetadata_headers",
