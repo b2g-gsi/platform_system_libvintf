@@ -54,6 +54,7 @@ using InstancesOfVersion =
 using Instances = std::map<Version, InstancesOfVersion>;
 
 class CheckVintfUtils;
+class FmOnlyVintfObject;
 
 }  // namespace details
 
@@ -89,7 +90,7 @@ struct HalManifest : public HalGroup<ManifestHal>,
                             CheckFlags::Type flags = CheckFlags::DEFAULT) const;
 
     // Generate a compatibility matrix such that checkCompatibility will return true.
-    CompatibilityMatrix generateCompatibleMatrix() const;
+    CompatibilityMatrix generateCompatibleMatrix(bool optional = true) const;
 
     // Returns all component names.
     std::set<std::string> getHalNames() const;
@@ -127,6 +128,8 @@ struct HalManifest : public HalGroup<ManifestHal>,
     // Alternative to forEachInstance if you just need a set of instance names instead.
     std::set<std::string> getHidlInstances(const std::string& package, const Version& version,
                                            const std::string& interfaceName) const;
+    std::set<std::string> getAidlInstances(const std::string& package, size_t version,
+                                           const std::string& interfaceName) const;
     std::set<std::string> getAidlInstances(const std::string& package,
                                            const std::string& interfaceName) const;
 
@@ -134,7 +137,11 @@ struct HalManifest : public HalGroup<ManifestHal>,
     bool hasHidlInstance(const std::string& package, const Version& version,
                          const std::string& interfaceName, const std::string& instance) const;
 
-    // Return whether a given AIDL instance is in this manifest.
+    // Return whether a given AIDL instance is in this manifest with version >= the given version.
+    bool hasAidlInstance(const std::string& package, size_t version,
+                         const std::string& interfaceName, const std::string& instance) const;
+
+    // Return whether a given AIDL instance is in this manifest with any version.
     bool hasAidlInstance(const std::string& package, const std::string& interfaceName,
                          const std::string& instance) const;
 
@@ -163,6 +170,7 @@ struct HalManifest : public HalGroup<ManifestHal>,
     friend class AssembleVintfImpl;
     friend class details::CheckVintfUtils;
     friend struct LibVintfTest;
+    friend class details::FmOnlyVintfObject;
     friend std::string dump(const HalManifest &vm);
     friend bool operator==(const HalManifest &lft, const HalManifest &rgt);
 
@@ -218,6 +226,9 @@ struct HalManifest : public HalGroup<ManifestHal>,
     // Helper for shouldAdd(). Check if |hal| has a conflicting major version with this. Return
     // false if hal should not be added, and set |error| accordingly. Return true if check passes.
     bool addingConflictingMajorVersion(const ManifestHal& hal, std::string* error) const;
+
+    // Inferred kernel level.
+    Level inferredKernelLevel() const;
 
     SchemaType mType;
     Level mLevel = Level::UNSPECIFIED;

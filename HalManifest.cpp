@@ -58,7 +58,7 @@ bool HalManifest::shouldAdd(const ManifestHal& hal, std::string* error) const {
 }
 
 bool HalManifest::addingConflictingMajorVersion(const ManifestHal& hal, std::string* error) const {
-    // Skip checking for AIDL HALs because they all contain kFakeAidlVersion.
+    // Skip checking for AIDL HALs because they all contain kFakeAidlMajorVersion.
     if (hal.format == HalFormat::AIDL) {
         return true;
     }
@@ -249,12 +249,12 @@ std::vector<std::string> HalManifest::checkIncompatibleHals(const CompatibilityM
         }
 
         std::set<FqInstance> manifestInstances;
-        std::set<std::string> simpleManifestInstances;
+        std::set<std::string> manifestInstanceDesc;
         std::set<Version> versions;
         for (const ManifestHal* manifestHal : getHals(matrixHal.name)) {
             manifestHal->forEachInstance([&](const auto& manifestInstance) {
                 manifestInstances.insert(manifestInstance.getFqInstance());
-                simpleManifestInstances.insert(manifestInstance.getSimpleFqInstance());
+                manifestInstanceDesc.insert(manifestInstance.descriptionWithoutPackage());
                 return true;
             });
             manifestHal->appendAllVersions(&versions);
@@ -268,7 +268,7 @@ std::vector<std::string> HalManifest::checkIncompatibleHals(const CompatibilityM
             if (manifestInstances.empty()) {
                 multilineIndent(oss, 8, versions);
             } else {
-                multilineIndent(oss, 8, simpleManifestInstances);
+                multilineIndent(oss, 8, manifestInstanceDesc);
             }
 
             ret.insert(ret.end(), oss.str());
@@ -427,9 +427,15 @@ bool HalManifest::checkCompatibility(const CompatibilityMatrix& mat, std::string
             return false;
         }
 
+        // Not using inferredKernelLevel() to preserve the legacy behavior if <kernel> does not have
+        // level attribute.
+        // Note that shouldCheckKernelCompatibility() only returns true on host, because the
+        // on-device HalManifest does not have kernel version set. On the device, kernel information
+        // is retrieved from RuntimeInfo.
+        Level kernelTagLevel = kernel()->level();
         if (flags.isKernelEnabled() && shouldCheckKernelCompatibility() &&
             kernel()
-                ->getMatchedKernelRequirements(mat.framework.mKernels, kernel()->level(), error)
+                ->getMatchedKernelRequirements(mat.framework.mKernels, kernelTagLevel, error)
                 .empty()) {
             return false;
         }
@@ -442,15 +448,23 @@ bool HalManifest::shouldCheckKernelCompatibility() const {
     return kernel().has_value() && kernel()->version() != KernelVersion{};
 }
 
-CompatibilityMatrix HalManifest::generateCompatibleMatrix() const {
+CompatibilityMatrix HalManifest::generateCompatibleMatrix(bool optional) const {
     CompatibilityMatrix matrix;
 
-    forEachInstance([&matrix](const ManifestInstance& e) {
+    std::set<std::tuple<HalFormat, std::string, Version, std::string, std::string>> instances;
+
+    forEachInstance([&matrix, &instances, optional](const ManifestInstance& e) {
+        auto&& [it, added] =
+            instances.emplace(e.format(), e.package(), e.version(), e.interface(), e.instance());
+        if (!added) {
+            return true;
+        }
+
         matrix.add(MatrixHal{
             .format = e.format(),
             .name = e.package(),
             .versionRanges = {VersionRange{e.version().majorVer, e.version().minorVer}},
-            .optional = true,
+            .optional = optional,
             .interfaces = {{e.interface(), HalInterface{e.interface(), {e.instance()}}}}});
         return true;
     });
@@ -564,7 +578,13 @@ std::set<std::string> HalManifest::getHidlInstances(const std::string& package,
 
 std::set<std::string> HalManifest::getAidlInstances(const std::string& package,
                                                     const std::string& interfaceName) const {
-    return getInstances(HalFormat::AIDL, package, details::kFakeAidlVersion, interfaceName);
+    return getAidlInstances(package, 0, interfaceName);
+}
+
+std::set<std::string> HalManifest::getAidlInstances(const std::string& package, size_t version,
+                                                    const std::string& interfaceName) const {
+    return getInstances(HalFormat::AIDL, package, {details::kFakeAidlMajorVersion, version},
+                        interfaceName);
 }
 
 bool HalManifest::hasHidlInstance(const std::string& package, const Version& version,
@@ -575,7 +595,13 @@ bool HalManifest::hasHidlInstance(const std::string& package, const Version& ver
 
 bool HalManifest::hasAidlInstance(const std::string& package, const std::string& interface,
                                   const std::string& instance) const {
-    return hasInstance(HalFormat::AIDL, package, details::kFakeAidlVersion, interface, instance);
+    return hasAidlInstance(package, 0, interface, instance);
+}
+
+bool HalManifest::hasAidlInstance(const std::string& package, size_t version,
+                                  const std::string& interface, const std::string& instance) const {
+    return hasInstance(HalFormat::AIDL, package, {details::kFakeAidlMajorVersion, version},
+                       interface, instance);
 }
 
 bool HalManifest::insertInstance(const FqInstance& fqInstance, Transport transport, Arch arch,
@@ -688,6 +714,21 @@ bool HalManifest::addAll(HalManifest* other, std::string* error) {
     }
 
     return true;
+}
+
+Level HalManifest::inferredKernelLevel() const {
+    if (kernel().has_value()) {
+        if (kernel()->level() != Level::UNSPECIFIED) {
+            return kernel()->level();
+        }
+    }
+    // As a special case, for devices launching with R and above, also infer from <manifest>.level.
+    // Devices launching before R may leave kernel level unspecified to use legacy kernel
+    // matching behavior; see KernelInfo::getMatchedKernelRequirements.
+    if (level() >= Level::R) {
+        return level();
+    }
+    return Level::UNSPECIFIED;
 }
 
 } // namespace vintf

@@ -33,6 +33,7 @@ cc_test {
         "libvintf",
     ],
     static_libs: [
+        "libgmock",
         "libgtest",
         "libassemblevintf",
         "libhidl-gen-utils",
@@ -54,6 +55,9 @@ cc_test {
     test_suites: [
         "general-tests",
     ],
+    test_options: {
+        unit_test: true,
+    },
 }
 
 cc_test {
@@ -82,8 +86,6 @@ cc_test {
     cflags: [
         "-O0",
         "-g",
-        // Unexpected logging of string pointer warning from gmock
-        "-Wno-user-defined-warnings"
     ],
     target: {
         android: {
@@ -95,5 +97,27 @@ cc_test {
     test_suites: [
         "general-tests",
     ],
+    test_options: {
+        unit_test: true,
+    },
+}
+
+cc_test_host {
+    name: "libvintffm_test",
+    defaults: ["libvintffm-defaults"],
+    static_libs: [
+        "libc++fs",
+        "libgmock",
+        "libvintffm",
+    ],
+    srcs: [
+        "VintfFmTest.cpp",
+    ],
+    test_suites: [
+        "general-tests",
+    ],
+    test_options: {
+        unit_test: true,
+    },
 }
 

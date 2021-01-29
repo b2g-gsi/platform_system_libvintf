@@ -27,6 +27,20 @@ cc_defaults {
     }
 }
 
+libvintf_private_deps = [
+    "libbase",
+    "libhidl-gen-utils",
+    "liblog",
+    "libselinux",
+    "libtinyxml2",
+    "libz",
+]
+
+cc_defaults {
+    name: "libvintf_static_user_defaults",
+    static_libs: libvintf_private_deps,
+}
+
 cc_library {
     name: "libvintf",
     defaults: ["libvintf-defaults"],
@@ -54,18 +68,15 @@ cc_library {
         "TransportArch.cpp",
         "VintfObject.cpp",
         "XmlFile.cpp",
+        "utils.cpp",
     ],
-    shared_libs: [
-        "libbase",
-        "libhidl-gen-utils",
-        "liblog",
-        "libselinux",
-        "libtinyxml2",
-        "libz",
-    ],
+    shared_libs: libvintf_private_deps,
     header_libs: [
         "libaidlmetadata_headers",
         "libhidlmetadata_headers",
+    ],
+    whole_static_libs: [
+        "libkver",
     ],
     export_include_dirs: ["include", "."],
     local_include_dirs: ["include/vintf"],
@@ -131,7 +142,9 @@ cc_binary_host {
     stl: "libc++_static",
     srcs: [
         "check_vintf.cpp",
+        "HostFileSystem.cpp",
     ],
+    local_include_dirs: ["include-host"],
 }
 
 cc_library_static {
@@ -167,3 +180,45 @@ cc_binary_host {
     ],
 }
 
+cc_defaults {
+    name: "libvintffm-defaults",
+    defaults: ["libvintf-defaults"],
+    host_supported: true,
+    export_include_dirs: [
+        "include-host",
+        "include-test",
+    ],
+    target: {
+        android: {
+            enabled: false,
+        },
+    },
+    static_libs: [
+        "libbase",
+        "libhidl-gen-utils",
+        "liblog",
+        "libtinyxml2",
+        "libutils",
+        "libvintf",
+    ],
+}
+
+cc_library_static {
+    name: "libvintffm",
+    defaults: ["libvintffm-defaults"],
+    srcs: [
+        "HostFileSystem.cpp",
+        "VintfFm.cpp",
+    ],
+}
+
+cc_binary_host {
+    name: "vintffm",
+    defaults: ["libvintffm-defaults"],
+    static_libs: [
+        "libvintffm",
+    ],
+    srcs: [
+        "VintfFmMain.cpp",
+    ],
+}

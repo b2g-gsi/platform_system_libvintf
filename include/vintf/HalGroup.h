@@ -201,6 +201,18 @@ struct HalGroup {
         return &it->second;
     }
 
+    // Remove if shouldRemove(hal).
+    void removeHalsIf(const std::function<bool(const Hal&)>& shouldRemove) {
+        for (auto it = mHals.begin(); it != mHals.end();) {
+            const Hal& value = it->second;
+            if (shouldRemove(value)) {
+                it = mHals.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
    private:
     friend class AnalyzeMatrix;
     friend class VintfObject;

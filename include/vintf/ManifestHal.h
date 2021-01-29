@@ -27,6 +27,7 @@
 
 #include "HalFormat.h"
 #include "HalInterface.h"
+#include "Level.h"
 #include "ManifestInstance.h"
 #include "TransportArch.h"
 #include "Version.h"
@@ -64,6 +65,8 @@ struct ManifestHal : public WithFileName {
     inline Arch arch() const { return transportArch.arch; }
 
     inline const std::string& getName() const { return name; }
+
+    // Assume isValid().
     bool forEachInstance(const std::function<bool(const ManifestInstance&)>& func) const;
 
     bool isOverride() const { return mIsOverride; }
@@ -72,6 +75,8 @@ struct ManifestHal : public WithFileName {
     // exist on the device. This is useful for ODM manifests to specify that
     // a HAL is disabled on certain products.
     bool isDisabledHal() const;
+
+    Level getMaxLevel() const { return mMaxLevel; }
 
    private:
     friend struct LibVintfTest;
@@ -86,10 +91,6 @@ struct ManifestHal : public WithFileName {
     // Return all versions mentioned by <version>s and <fqname>s.
     void appendAllVersions(std::set<Version>* ret) const;
 
-    bool mIsOverride = false;
-    // Additional instances to <version> x <interface> x <instance>.
-    std::set<ManifestInstance> mAdditionalInstances;
-
     // insert instances to mAdditionalInstances.
     // Existing instances will be ignored.
     // Pre: all instances to be inserted must satisfy
@@ -99,6 +100,15 @@ struct ManifestHal : public WithFileName {
 
     // Verify instance before inserting.
     bool verifyInstance(const FqInstance& fqInstance, std::string* error = nullptr) const;
+
+    bool mIsOverride = false;
+    // Additional instances to <version> x <interface> x <instance>.
+    std::set<ManifestInstance> mAdditionalInstances;
+
+    // Max level of this HAL. Only valid for framework manifest HALs.
+    // If set, HALs with max-level < target FCM version in device manifest is
+    // disabled.
+    Level mMaxLevel = Level::UNSPECIFIED;
 };
 
 } // namespace vintf
