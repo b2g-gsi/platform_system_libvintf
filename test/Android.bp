@@ -55,6 +55,9 @@ cc_test {
     test_suites: [
         "general-tests",
     ],
+    test_options: {
+        unit_test: true,
+    },
 }
 
 cc_test {
@@ -94,6 +97,9 @@ cc_test {
     test_suites: [
         "general-tests",
     ],
+    test_options: {
+        unit_test: true,
+    },
 }
 
 cc_test_host {
@@ -107,5 +113,11 @@ cc_test_host {
     srcs: [
         "VintfFmTest.cpp",
     ],
+    test_suites: [
+        "general-tests",
+    ],
+    test_options: {
+        unit_test: true,
+    },
 }
 

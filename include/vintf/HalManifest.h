@@ -128,6 +128,8 @@ struct HalManifest : public HalGroup<ManifestHal>,
     // Alternative to forEachInstance if you just need a set of instance names instead.
     std::set<std::string> getHidlInstances(const std::string& package, const Version& version,
                                            const std::string& interfaceName) const;
+    std::set<std::string> getAidlInstances(const std::string& package, size_t version,
+                                           const std::string& interfaceName) const;
     std::set<std::string> getAidlInstances(const std::string& package,
                                            const std::string& interfaceName) const;
 
@@ -135,7 +137,11 @@ struct HalManifest : public HalGroup<ManifestHal>,
     bool hasHidlInstance(const std::string& package, const Version& version,
                          const std::string& interfaceName, const std::string& instance) const;
 
-    // Return whether a given AIDL instance is in this manifest.
+    // Return whether a given AIDL instance is in this manifest with version >= the given version.
+    bool hasAidlInstance(const std::string& package, size_t version,
+                         const std::string& interfaceName, const std::string& instance) const;
+
+    // Return whether a given AIDL instance is in this manifest with any version.
     bool hasAidlInstance(const std::string& package, const std::string& interfaceName,
                          const std::string& instance) const;
 

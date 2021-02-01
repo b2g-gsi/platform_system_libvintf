@@ -84,8 +84,6 @@ class VintfObjectCompatibleTest;
  * If any error, nullptr is returned, and Get will try to parse the HAL manifest
  * again when it is called again.
  * All these operations are thread-safe.
- * If skipCache, always skip the cache in memory and read the files / get runtime information
- * again from the device.
  */
 class VintfObject {
    public:
@@ -267,8 +265,7 @@ class VintfObject {
 
    public:
     /*
-     * Get global instance. By default, this fetches from root and cache results,
-     * unless skipCache is specified.
+     * Get global instance. Results are cached.
      */
     static std::shared_ptr<VintfObject> GetInstance();
 
@@ -301,15 +298,9 @@ class VintfObject {
     /*
      * Return the API that access device runtime info.
      *
-     * {skipCache == true, flags == ALL}: re-fetch everything
-     * {skipCache == false, flags == ALL}: fetch everything if not previously fetched
-     * {skipCache == true, flags == selected info}: re-fetch selected information
-     *                                if not previously fetched.
-     * {skipCache == false, flags == selected info}: fetch selected information
-     *                                if not previously fetched.
-     *
-     * @param skipCache do not fetch if previously fetched
      * @param flags bitwise-or of RuntimeInfo::FetchFlag
+     *   flags == ALL: fetch everything if not previously fetched
+     *   flags == selected info: fetch selected information if not previously fetched.
      */
     static std::shared_ptr<const RuntimeInfo> GetRuntimeInfo(
         RuntimeInfo::FetchFlags flags = RuntimeInfo::FetchFlag::ALL);

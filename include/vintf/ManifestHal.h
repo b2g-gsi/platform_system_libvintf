@@ -65,6 +65,8 @@ struct ManifestHal : public WithFileName {
     inline Arch arch() const { return transportArch.arch; }
 
     inline const std::string& getName() const { return name; }
+
+    // Assume isValid().
     bool forEachInstance(const std::function<bool(const ManifestInstance&)>& func) const;
 
     bool isOverride() const { return mIsOverride; }

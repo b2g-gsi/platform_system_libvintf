@@ -4,26 +4,14 @@
       "name": "libvintf_test"
     },
     {
-      "name": "libvintf_test",
+      "name": "libvintffm_test",
       "host": true
     },
     {
       "name": "vintf_object_test"
     },
     {
-      "name": "vintf_object_test",
-      "host": true
-    },
-    {
       "name": "lshal_test"
-    },
-    {
-      "name": "releasetools_test",
-      "host": true
-    },
-    {
-      "name": "releasetools_py3_test",
-      "host": true
     }
   ]
 }

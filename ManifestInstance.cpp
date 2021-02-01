@@ -23,6 +23,8 @@
 
 #include <utility>
 
+#include <android-base/logging.h>
+
 #include "parse_string.h"
 
 namespace android {
@@ -93,7 +95,7 @@ std::string ManifestInstance::getSimpleFqInstance() const {
     bool success = false;
     switch (format()) {
         case HalFormat::AIDL: {
-            // Hide fake version when printing human-readable message or to manifest XML.
+            // Hide fake version when printing to manifest XML <fqname> tag.
             success = e.setTo(interface(), instance());
         } break;
         case HalFormat::HIDL:
@@ -111,7 +113,8 @@ std::string ManifestInstance::getSimpleFqInstance() const {
 std::string ManifestInstance::description() const {
     switch (format()) {
         case HalFormat::AIDL: {
-            return toAidlFqnameString(package(), interface(), instance());
+            return toAidlFqnameString(package(), interface(), instance()) + " (@" +
+                   aidlVersionToString(version()) + ")";
         } break;
         case HalFormat::HIDL:
             [[fallthrough]];
@@ -119,6 +122,27 @@ std::string ManifestInstance::description() const {
             return getFqInstance().string();
         } break;
     }
+}
+
+std::string ManifestInstance::descriptionWithoutPackage() const {
+    switch (format()) {
+        case HalFormat::AIDL: {
+            return toFQNameString(interface(), instance()) + " (@" +
+                   aidlVersionToString(version()) + ")";
+        } break;
+        case HalFormat::HIDL:
+            [[fallthrough]];
+        case HalFormat::NATIVE: {
+            return getSimpleFqInstance();
+        } break;
+    }
+}
+
+ManifestInstance ManifestInstance::withVersion(const Version& v) const {
+    FqInstance fqInstance;
+    CHECK(fqInstance.setTo(getFqInstance().getPackage(), v.majorVer, v.minorVer,
+                           getFqInstance().getInterface(), getFqInstance().getInstance()));
+    return ManifestInstance(fqInstance, mTransportArch, format());
 }
 
 }  // namespace vintf

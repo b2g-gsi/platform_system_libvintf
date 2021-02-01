@@ -92,21 +92,21 @@ static constexpr const char* gFrameworkManifest = R"(
 // clang-format off
 static std::set<std::string> gInstances1 = {
     "android.frameworks.level1@1.0::IHidl/default",
-    "android.frameworks.level1.IAidl/default",
+    "android.frameworks.level1.IAidl/default (@1)",
     "android.frameworks.level2@1.0::IHidl/default",
-    "android.frameworks.level2.IAidl/default",
+    "android.frameworks.level2.IAidl/default (@1)",
     "android.frameworks.no_level@1.0::IHidl/default",
-    "android.frameworks.no_level.IAidl/default",
+    "android.frameworks.no_level.IAidl/default (@1)",
 };
 static std::set<std::string> gInstances2 = {
     "android.frameworks.level2@1.0::IHidl/default",
-    "android.frameworks.level2.IAidl/default",
+    "android.frameworks.level2.IAidl/default (@1)",
     "android.frameworks.no_level@1.0::IHidl/default",
-    "android.frameworks.no_level.IAidl/default",
+    "android.frameworks.no_level.IAidl/default (@1)",
 };
 static std::set<std::string> gInstances3 = {
     "android.frameworks.no_level@1.0::IHidl/default",
-    "android.frameworks.no_level.IAidl/default",
+    "android.frameworks.no_level.IAidl/default (@1)",
 };
 // clang-format on
 
